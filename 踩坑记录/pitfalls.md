@@ -17,8 +17,10 @@
 | 8 | [08-data-recording.md](./08-data-recording.md) | 数据录制（teleop参数、键位、难点、光照控制、fixed_joints） |
 | 9 | [09-model-training.md](./09-model-training.md) | 模型训练（预训练模型、rename_map、Resume Bug、离线配置） |
 | 10 | [10-model-inference.md](./10-model-inference.md) | 模型推理（路径问题、eval_前缀、Feature匹配） |
-| 附录 | [11-appendix.md](./11-appendix.md) | 诊断命令、关键路径、项目参数配置 |
+| 附录 | [11-appendix.md](./11-appendix.md) | 诊断命令、关键路径、参数配置、包版本、single_task 对照表 |
+
+---
 
 ## 项目流程
 
-完整时间线和流程记录见 [workflow.md](./workflow.md)。
+完整时间线和流程记录见 [../项目流程/workflow.md](../项目流程/workflow.md)。

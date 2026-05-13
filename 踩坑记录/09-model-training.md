@@ -128,17 +128,7 @@ HF_HUB_OFFLINE=1 lerobot-train \
 
 ---
 
-## 9.8 训练速度参考
-
-本项目硬件 RTX 5070 12GB：
-- batch_size=8 时约 **3.3 step/s**，40000 步约 3.3 小时
-- batch_size=36 时约 **1.0 step/s**（单步计算量大但总收敛更快），40000 步约 11 小时
-- 25000 步（batch_size=8）约 2.1 小时
-- 10000 步（batch_size=8）约 50 分钟
-
----
-
-## 9.13 OpenCV/numpy 版本冲突
+## 9.8 OpenCV/numpy 版本冲突
 
 **现象**：训练或回放数据时报：
 ```
@@ -161,7 +151,17 @@ conda uninstall -y opencv && pip install opencv-python-headless==4.10.0.84 && pi
 
 ---
 
-## 9.9 第1轮训练（10000步）
+## 9.9 训练速度参考
+
+本项目硬件 RTX 5070 12GB：
+- batch_size=8 时约 **3.3 step/s**，40000 步约 3.3 小时
+- batch_size=36 时约 **1.0 step/s**（单步计算量大但总收敛更快），40000 步约 11 小时
+- 25000 步（batch_size=8）约 2.1 小时
+- 10000 步（batch_size=8）约 50 分钟
+
+---
+
+## 9.10 第1轮训练（10000步）
 
 ```bash
 HF_HUB_OFFLINE=1 lerobot-train \
@@ -197,7 +197,7 @@ HF_HUB_OFFLINE=1 lerobot-train \
 
 ---
 
-## 9.10 第2轮训练（40000步，从零重训）
+## 9.11 第2轮训练（40000步，从零重训）
 
 由于 resume bug 无法继续训练，决定从 zero checkpoint 开始重训到 40000 步：
 
@@ -221,7 +221,7 @@ HF_HUB_OFFLINE=1 lerobot-train \
 
 ---
 
-## 9.11 第3轮训练（V3版，40000步，batch_size=36）
+## 9.12 第3轮训练（V3版，40000步，batch_size=36）
 
 使用更大 batch size 加速收敛：
 
@@ -229,9 +229,13 @@ HF_HUB_OFFLINE=1 lerobot-train \
 HF_HUB_OFFLINE=1 lerobot-train \
     --policy.path=/home/jer/ws/workspace/models/smolvla_base_migrated \
     --policy.load_vlm_weights=false \
+    --policy.use_amp=true \
+    --policy.n_obs_steps=4 \
     --dataset.repo_id=local/smolvla210 \
     --dataset.root=/home/jer/ws/workspace/datasets/smolvla210 \
     --dataset.streaming=false \
+    --dataset.image_transforms.enable=true \
+    --dataset.image_transforms.random_order=true \
     --output_dir=/home/jer/ws/workspace/models/smolvla_v3_run2/ \
     --job_name=so101_3color_smolvla_v3 \
     --policy.device=cuda \
@@ -244,12 +248,63 @@ HF_HUB_OFFLINE=1 lerobot-train \
 ```
 
 **V3 与之前版本的差异**：
-- batch_size 从 8 提升到 36，大幅加快收敛速度
-- 训练时长约 11 小时（RTX 5070 12GB 满载）
+
+| 参数 | V1/V2 | V3 | 说明 |
+|------|-------|-----|------|
+| batch_size | 8 | **36** | 大幅提升，加速收敛 |
+| use_amp | 关闭 | **开启 (bfloat16)** | 混合精度训练，节省显存 |
+| n_obs_steps | 1 | **4** | 连续4帧历史信息，增强时序感知 |
+| image_transforms | 关闭 | **开启** | 轻量图像增强，提升泛化 |
+| steps | 10000/40000 | 40000 | 相同 |
+| save_freq | 1000/2000 | 2000 | 相同 |
+
+### 9.12.1 V3 图像增强详情
+
+V3 使用"轻量"图像增强策略，只开启亮度和对比度变换，关闭颜色/几何增强：
+
+| 变换 | V1/V2 | V3 | 范围 |
+|------|-------|-----|------|
+| brightness | 关闭 | **开启** | ±10% (0.9, 1.1) |
+| contrast | 关闭 | **开启** | ±10% (0.9, 1.1) |
+| saturation | 关闭 | 关闭 | — |
+| hue | 关闭 | 关闭 | — |
+| sharpness | 关闭 | 关闭 | — |
+| affine (旋转/平移) | 关闭 | 关闭 | — |
+
+设计思路：增强太强会干扰学习，太弱则起不到泛化效果。±10% 是经过权衡的轻量选择。
+
+### 9.12.2 优化器与学习率调度
+
+训练使用的 optimizer 和 scheduler 配置（从预训练模型继承）：
+
+- **优化器**: AdamW
+- **初始学习率**: 1e-4 (0.0001)
+- **Weight decay**: 1e-10
+- **Gradient clip**: 10.0
+- **Scheduler**: cosine_decay_with_warmup
+- **Warmup 步数**: 1000
+- **衰减总步数**: 30000
+- **学习率范围**: 1e-4 (peak) → 2.5e-6 (final)
+
+### 9.12.3 V2 测试结果参考
+
+在切换到 V3 之前，V2 模型（batch_size=8, 40000步）各 checkpoint 的测试表现：
+
+| 步数 | 表现 |
+|------|------|
+| 10000 | 基础可用 |
+| 26000 | 非常一般 |
+| 28000 | ✓ **最佳**（比 32000 好很多） |
+| 32000 | 一般 |
+
+### 9.12.4 V4 改进方向
+
+- [ ] 数据降采样：30fps → 10fps（每3帧取1帧，减小 epoch 提升泛化）
+- [ ] 调整学习率（尝试更低初始 LR）
 
 ---
 
-## 9.12 数据集结构要求
+## 9.13 数据集结构要求
 
 LeRobot 期望的本地数据集目录结构：
 

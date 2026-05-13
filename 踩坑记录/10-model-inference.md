@@ -7,7 +7,7 @@
 | 版本 | 来源 | 训练步数 | 推理时长 | 模型路径 |
 |------|------|----------|----------|----------|
 | V1/V2 | smolvla210 | 25000 | 60秒 | `smolvla210_put_3_in` |
-| V3 | smolvla_v3_run2 | 40000 | 120秒 | `smolvla_v3_infer` |
+| V3 | smolvla_v3_run2 | 40000 | 300秒 | `smolvla_v3_infer_18k` / `smolvla_v3_infer_22k` |
 
 ---
 
@@ -26,10 +26,6 @@ FileNotFoundError: [Errno 2] No such file or directory: 'pretrained_model/config
 # V1/V2 版本导出
 mkdir -p /home/jer/ws/workspace/models/smolvla210_put_3_in
 cp -r checkpoints/025000/pretrained_model/* /home/jer/ws/workspace/models/smolvla210_put_3_in/
-
-# V3 版本导出
-mkdir -p /home/jer/ws/workspace/models/smolvla_v3_infer
-cp -r checkpoints/040000/pretrained_model/* /home/jer/ws/workspace/models/smolvla_v3_infer/
 ```
 
 **绝对不要**保留 `pretrained_model/` 这层目录。
@@ -110,11 +106,25 @@ lerobot-record \
 
 ### V3 版本（40000步）
 
-推理时长增加到 120 秒：
+推理时长增加到 300 秒（5分钟），因为 V3 模型更稳健，可以处理更连续的动作：
 
 ```bash
-    --dataset.episode_time_s=120 \
-    --policy.path=/home/jer/ws/workspace/models/smolvla_v3_infer
+sudo chmod 666 /dev/ttySO101_FOLLOWER
+
+lerobot-record \
+    --robot.type=so101_follower \
+    --robot.port=/dev/ttySO101_FOLLOWER \
+    --robot.id=j_follower \
+    --robot.fixed_joints="{wrist_roll: -67.74}" \
+    --robot.cameras="{camera1: {type: opencv, index_or_path: 2, fps: 30, width: 640, height: 480, fourcc: YUYV}, camera2: {type: opencv, index_or_path: 0, fps: 30, width: 640, height: 480, fourcc: MJPG}}" \
+    --display_data=false \
+    --dataset.repo_id=local/eval_smolvla210 \
+    --dataset.root=/home/jer/ws/workspace/datasets/eval_smolvla210 \
+    --dataset.single_task="put small green block in plate" \
+    --dataset.episode_time_s=300 \
+    --dataset.push_to_hub=false \
+    --resume=true \
+    --policy.path=/home/jer/ws/workspace/models/smolvla_v3_infer_18k
 ```
 
 ### 颜色切换
@@ -135,17 +145,64 @@ lerobot-record \
 |------|------|
 | `--policy.path` | 训练好的模型路径 |
 | `--dataset.single_task` | 语言指令，模型据此定位目标颜色 |
-| `--dataset.episode_time_s` | 推理时长，V1/V2用60秒，V3用120秒 |
+| `--dataset.episode_time_s` | 推理时长，V1/V2用60秒，V3用300秒 |
 | `--resume=true` | **复用现有 eval 数据集，不创建新数据集** |
 | `--display_data=false` | 关闭 GUI 预览减少开销 |
 
 ---
 
-## 10.7 推理时 GPU 使用
+## 10.7 V3 各 Checkpoint 测试结果
 
-推理默认使用 GPU（配置中 `device: cuda`），无需额外配置。
+V3 训练产出了多个 checkpoint（每 2000 步保存），测试后发现中间步数表现反而更好：
+
+| 步数 | 表现 | 备注 |
+|------|------|------|
+| 16k | 待测试 | |
+| 18k | ✅ **最强** | 综合最佳平衡点 |
+| 20k | 待测试 | |
+| 22k | ✅ 不错 | 仅次于 18k，备选 |
+| 26k | 待测试 | |
+| 30k | 待测试 | |
+| 34k | 待测试 | |
+| 40k | 待测试 | |
+
+**结论**：推荐使用 **18k** 推理，**22k** 作为备选。更多步数不一定更好，模型在中间阶段可能泛化最均衡。
+
+模型导出：
+```bash
+# 18k 推理模型
+mkdir -p /home/jer/ws/workspace/models/smolvla_v3_infer_18k
+cp -r /home/jer/ws/workspace/models/smolvla_v3_run2/checkpoints/018000/pretrained_model/* /home/jer/ws/workspace/models/smolvla_v3_infer_18k/
+
+# 22k 推理模型
+mkdir -p /home/jer/ws/workspace/models/smolvla_v3_infer_22k
+cp -r /home/jer/ws/workspace/models/smolvla_v3_run2/checkpoints/022000/pretrained_model/* /home/jer/ws/workspace/models/smolvla_v3_infer_22k/
+```
+
+---
+
+## 10.8 推理时 GPU 使用
+
+推理默认使用 GPU（配置中 `device: cuda`），无需额外配置。模型会自动加载到 CUDA GPU 上进行推理。
 
 推理速度慢的常见原因：
 - 相机帧率不足（非模型问题）
 - 缺少真实摄像头的警告信息可忽略
 - 模型加载（906MB）需要一定时间
+
+---
+
+## 10.9 爪子马达红灯问题
+
+**现象**：遥控爪子时，某些角度会导致夹爪马达亮红灯。红灯后暂时还能控制，但退出程序后再进入录制/推理时找不到该马达，必须断电重启才能恢复。
+
+**原因**：
+1. 爪子转动角度超过安全范围，触发过载保护
+2. 某些角度阻力大，导致电流超标
+3. 红灯后 CAN 总线通讯可能进入异常状态
+
+**建议**：
+- 一旦发现红灯，立即将爪子回到中间位置再退出程序
+- 遥控时使用更慢的速度
+- 确认 `wrist_roll: -67.74` 在安全范围内
+- 推理前先断电重启一次确保所有马达正常

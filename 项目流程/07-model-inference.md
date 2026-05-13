@@ -9,9 +9,9 @@
 mkdir -p /home/jer/ws/workspace/models/smolvla210_put_3_in
 cp -r checkpoints/025000/pretrained_model/* /home/jer/ws/workspace/models/smolvla210_put_3_in/
 
-# V3（40000步）
-mkdir -p /home/jer/ws/workspace/models/smolvla_v3_infer
-cp -r checkpoints/040000/pretrained_model/* /home/jer/ws/workspace/models/smolvla_v3_infer/
+# V3（18k checkpoint）
+mkdir -p /home/jer/ws/workspace/models/smolvla_v3_infer_18k
+cp -r checkpoints/018000/pretrained_model/* /home/jer/ws/workspace/models/smolvla_v3_infer_18k/
 ```
 
 **注意**：不能保留 `pretrained_model/` 这层目录，否则推理时报 FileNotFoundError。
@@ -23,7 +23,7 @@ cp -r checkpoints/040000/pretrained_model/* /home/jer/ws/workspace/models/smolvl
 | 版本 | 来源 | 步数 | 推理时长 | 用途 |
 |------|------|------|----------|------|
 | V1/V2 | smolvla210 | 25000 | 60秒 | 三色全覆盖基准 |
-| V3 | smolvla_v3_run2 | 40000 | 120秒 | V3 评估，更长推理时间 |
+| V3 | smolvla_v3_run2 | 40000 | 300秒 | V3 评估，更长推理时间（5分钟） |
 
 ## 推理命令
 
@@ -52,11 +52,13 @@ lerobot-record \
 
 ### V3
 
-仅需修改两个参数：
+仅需修改两个参数（切换颜色时额外修改 `--dataset.single_task`）：
 ```bash
---dataset.episode_time_s=120 \
---policy.path=/home/jer/ws/workspace/models/smolvla_v3_infer
+--dataset.episode_time_s=300 \
+--policy.path=/home/jer/ws/workspace/models/smolvla_v3_infer_18k
 ```
+
+推荐使用 18k checkpoint（V3 测试中表现最强），22k 作为备选。
 
 ## 推理参数说明
 
@@ -64,7 +66,7 @@ lerobot-record \
 |------|-----|------|
 | `--policy.path` | 模型目录 | 导出的模型权重路径 |
 | `--dataset.single_task` | 语言指令 | 模型据此确定抓取哪种颜色的方块 |
-| `--dataset.episode_time_s` | 60 / 120 | 推理时长，V3 更长因为训练步数更多 |
+| `--dataset.episode_time_s` | 60 / 300 | 推理时长，V3 更长因为模型更稳健 |
 | `--resume` | true | 推理模式下复用 eval 数据集，不创建新数据 |
 | `--display_data` | false | 推理时不预览以减少开销 |
 

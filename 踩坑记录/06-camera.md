@@ -83,8 +83,8 @@ ls /dev/v4l/by-id/
 
 | 摄像头 | index | by-id 路径 |
 |--------|-------|------------|
-| top（顶部第三视角） | 0 | `usb-icSpring_icspring_camera-video-index0` |
-| front（爪子视角） | 2 | `usb-icSpring_icspring_camera_202404160005-video-index0` |
+| front（爪子视角） | 2 | `usb-icSpring_icspring_camera-video-index0` |
+| top（顶部第三视角） | 0 | `usb-icSpring_icspring_camera_202404160005-video-index0` |
 
 **注意**：换 USB 口后 index 可能重新分配，用 `lerobot-find-cameras opencv` 重新确认。
 

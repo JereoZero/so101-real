@@ -17,15 +17,57 @@
 - 系统与数据独立于主机，不怕主机系统崩溃
 - 保留完整 GPU 驱动能力
 
-### 安装流程
+### 制作启动盘并安装到移动固态硬盘
 
-1. **制作 Ubuntu 22.04 启动盘**，安装到移动固态硬盘
-2. **配置 GRUB**：添加 `nomodeset` 参数防止不兼容显卡黑屏
-3. **替换镜像源**：官方源 → 阿里云镜像，加速国内下载
-4. **安装软件**：按顺序安装以下软件包
-5. **禁用自动更新**：`systemctl disable apt-daily`，避免后台 IO 抢占
+#### 准备工作
+
+1. **准备材料**：
+   - 移动固态硬盘（容量 ≥ 256GB，本项目使用 USB 3.0 接口）
+   - 另一台能正常上网的电脑，用于下载 Ubuntu ISO 和制作启动盘
+   - 一个 ≥ 8GB 的 U 盘（作为启动盘）
+
+2. **下载 Ubuntu 22.04 ISO**：
+   从 https://releases.ubuntu.com/22.04/ 下载 `ubuntu-22.04.5-desktop-amd64.iso`
+
+3. **制作启动 U 盘**：使用 Rufus（Windows）或 balenaEtcher（跨平台）将 ISO 写入 U 盘
+
+#### 安装步骤
+
+1. 将启动 U 盘和目标移动固态硬盘同时插入电脑
+2. 重启电脑，进入 BIOS 选择从 U 盘启动
+3. 进入 Ubuntu 安装程序：
+   - 语言选择 English
+   - **安装类型选 "Erase disk and install Ubuntu"**
+   - **关键：在磁盘选择界面，务必选移动固态硬盘（不是主机内置硬盘！）**
+   - 可以通过硬盘容量来区分（移动硬盘容量通常与内置盘不同）
+4. 设置用户名和密码：
+   - 用户名：`jer`
+   - 计算机名：自定
+5. 等待安装完成，重启
+
+#### 首次启动
+
+由于是移动硬盘系统，首次插入不同电脑时可能遇到问题：
+
+1. **启动时按对应键进入 BIOS 启动菜单**（F12/F2/Del，不同品牌不同）
+2. 选择从 USB / UEFI 移动硬盘启动
+3. 如果黑屏，参考下方 GRUB nomodeset 配置
+
+### 安装流程（系统安装后的配置顺序）
+
+1. **配置 GRUB**：添加 `nomodeset` 参数防止不兼容显卡黑屏
+2. **替换镜像源**：官方源 → 阿里云镜像，加速国内下载
+3. **安装基础工具**：git, vim, htop, tmux, tree, net-tools, curl, wget
+4. **配置 SSH**：安装 openssh-server，开机自启，方便远程操作
+5. **禁用自动更新**：`systemctl disable apt-daily`，避免后台 IO 抢占移动硬盘
 6. **禁用系统休眠**：`systemctl mask sleep.target`，移动硬盘休眠后 USB 断电无法恢复
-7. **配置 SSH**：安装 openssh-server，开机自启，远程操作
+7. **安装 NVIDIA 驱动**（见下方 NVIDIA 驱动安装）
+8. **安装 Miniconda** → 创建 conda 环境
+9. **安装 PyTorch + CUDA**
+10. **安装其他软件**（Docker、Fcitx5 等）
+11. **安装开发工具**（VS Code、系统依赖等）
+12. **安装仿真环境**（MuJoCo）
+13. **创建项目工作目录结构**
 
 ### 软件安装清单
 
@@ -76,6 +118,101 @@ sudo systemctl restart docker
 ```
 
 安装以上基础的软件包后，进入后续步骤。LeRobot 及其依赖、PyTorch、CUDA 等 Python 包在第 3 章 LeRobot 开发环境中安装。
+
+**开发工具（VS Code）**：
+
+```bash
+sudo apt install -y software-properties-common apt-transport-https
+wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+sudo sh -c 'echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+rm -f packages.microsoft.gpg
+sudo apt update
+sudo apt install -y code
+```
+
+**仿真环境（MuJoCo 3.6.0）**：
+
+在 LeRobot 的 conda 环境中安装：
+
+```bash
+pip install mujoco
+# 验证
+python -c "import mujoco; print(mujoco.__version__)"
+```
+
+LeRobot 内置仿真环境支持 aloha、pusht、unitree_g1 等场景，通过 MuJoCo 渲染。
+
+**ROS2 Humble 安装（尝试但未使用）**：
+
+曾尝试安装 ROS2 Humble 用于机器人开发，但因 SO101 已有 Feetech SDK 直接驱动、LeRobot 框架已满足需求，最终决定暂时搁置。完整安装命令保留供参考：
+
+```bash
+# 设置语言环境
+sudo apt install -y locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+
+# 添加 ROS2 源
+sudo apt install -y curl gnupg lsb-release
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/ros2.list
+
+# 安装
+sudo apt update
+sudo apt install -y ros-humble-desktop
+
+# 初始化
+source /opt/ros/humble/setup.bash
+```
+
+**Isaac SIM 评估**：曾评估安装 NVIDIA Isaac SIM 用于仿真训练，发现需要 Python 3.10/3.11（本项目使用 3.12）且需要 NVIDIA Omniverse 账户，决定不使用，直接用 MuJoCo。
+
+### 工作目录结构
+
+```bash
+mkdir -p /home/jer/ws/workspace/projects   # 代码仓库
+mkdir -p /home/jer/ws/workspace/datasets   # 数据集
+mkdir -p /home/jer/ws/workspace/models     # 模型权重
+mkdir -p /home/jer/ws/docs                 # 项目文档
+```
+
+### 环境变量配置
+
+在 `~/.bashrc` 中添加：
+
+```bash
+# conda
+source ~/miniconda3/etc/profile.d/conda.sh
+
+# CUDA
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+```
+
+### 常用别名
+
+```bash
+# ~/.bashrc 中添加
+alias ll='ls -lah'
+alias gs='git status'
+alias gc='git commit -m'
+alias update='sudo apt update && sudo apt upgrade -y'
+alias ports='netstat -tulanp'
+```
+
+### 系统备份与迁移
+
+导出已安装软件包列表，方便在全新系统上恢复：
+
+```bash
+# 导出
+dpkg --get-selections > packages.list
+
+# 导入（在全新系统上）
+sudo dpkg --set-selections < packages.list
+sudo apt-get dselect-upgrade
+```
 
 ## BIOS 更新
 

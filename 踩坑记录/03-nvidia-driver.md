@@ -27,7 +27,58 @@
 
 ---
 
-## 3.2 RTX 5070 驱动安装失败：必须使用 open 版本
+## 3.2 驱动安装试错全过程
+
+RTX 5070 的驱动安装并非一蹴而就，经历了多次失败才找到正确的安装方式：
+
+| 尝试 | 驱动版本 | 结果 | 原因 |
+|------|----------|------|------|
+| 第1次 | nvidia-driver-550 | ❌ 安装失败 | 版本太低，不支持 RTX 5070（Blackwell 需要 ≥ 570） |
+| 第2次 | nvidia-driver-570 | ❌ 编译失败 | DKMS 编译时 GCC 版本不兼容 |
+| 第3次 | nvidia-driver-580 | ❌ nvidia-smi 显示 "No devices were found" | 专有版驱动不支持 Blackwell，必须用 open 版 |
+| 第4次 | nvidia-driver-580-open | ✅ 成功 | 开放内核模块版本 |
+
+### 第1次失败：版本过低
+
+RTX 5070 是 Blackwell 架构，最低驱动要求比预期更高。`nvidia-driver-550` 直接安装失败，提示不支持该 GPU。
+
+### 第2次失败：GCC 编译不兼容
+
+`nvidia-driver-570` 在 DKMS 编译内核模块时报错。Ubuntu 22.04 默认的 GCC 版本与 NVIDIA 驱动不完全兼容。解决方式是安装 `gcc-12` 并在编译时指定：
+
+```bash
+sudo apt install gcc-12
+# 编译时 CC=/usr/bin/gcc-12
+```
+
+但即使 GCC 兼容，570 对 Blackwell 的支持仍不完善。
+
+### 第3次失败：专有驱动 vs Open 驱动
+
+安装了 `nvidia-driver-580` 后，`nvidia-smi` 仍然报：
+```
+NVRM: The NVIDIA GPU installed in this system requires use of the NVIDIA open kernel modules.
+```
+
+这是最关键的一步——**RTX 5070 强制要求使用 open kernel module，专有版驱动完全不支持**。`nvidia-driver-580` 和 `nvidia-driver-580-open` 是两个不同的包！
+
+### 第4次：终于成功
+
+```bash
+# 先彻底卸载之前残留的驱动和 dkms 模块
+sudo apt-get remove --purge nvidia-driver-580 nvidia-dkms-580 -y
+
+# 安装 open 版本
+sudo apt-get install -y nvidia-driver-580-open
+
+sudo reboot
+```
+
+**关键教训**：如果之前装过专有版驱动，必须连同 `nvidia-dkms-580` 一起彻底卸载，否则残留的 DKMS 模块会干扰新驱动的编译。最终验证通过 —— 驱动 580.126.20，CUDA 13.0，PyTorch 正常识别 GPU。
+
+---
+
+## 3.3 RTX 5070 驱动选择要点：open 版本
 
 **现象**：安装 `nvidia-driver-580` 后，`nvidia-smi` 报 `No devices were found`，内核日志显示：
 ```
@@ -57,7 +108,7 @@ sudo reboot
 
 ---
 
-## 3.3 BIOS 必须开启 Resizable BAR + 关闭 SecureBoot
+## 3.4 BIOS 必须开启 Resizable BAR + 关闭 SecureBoot
 
 **现象**：即使安装了正确的 open 驱动，驱动仍然无法加载。
 
@@ -69,7 +120,7 @@ sudo reboot
 
 ---
 
-## 3.4 GCC 版本导致驱动编译失败
+## 3.5 GCC 版本导致驱动编译失败
 
 **现象**：安装 NVIDIA 驱动时 DKMS 编译失败，日志显示 GCC 版本不兼容。
 
@@ -84,7 +135,7 @@ sudo apt install gcc-12
 
 ---
 
-## 3.5 驱动版本与 CUDA 版本的对应关系
+## 3.6 驱动版本与 CUDA 版本的对应关系
 
 **关键经验**：必须确保驱动版本 >= CUDA 工具包要求的最低版本。
 

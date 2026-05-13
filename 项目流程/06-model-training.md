@@ -17,22 +17,28 @@ python src/lerobot/processor/migrate_policy_normalization.py \
 
 迁移后路径：`/home/jer/ws/workspace/models/smolvla_base_migrated/`
 
-## 训练命令
+## 训练命令（最终 V3 版本）
+
+下面是本项目最终使用的训练命令。V3 相比之前版本新增了混合精度、多帧输入和图像增强。
 
 ```bash
 HF_HUB_OFFLINE=1 lerobot-train \
     --policy.path=/home/jer/ws/workspace/models/smolvla_base_migrated \
     --policy.load_vlm_weights=false \
+    --policy.use_amp=true \
+    --policy.n_obs_steps=4 \
     --dataset.repo_id=local/smolvla210 \
     --dataset.root=/home/jer/ws/workspace/datasets/smolvla210 \
     --dataset.streaming=false \
-    --output_dir=/home/jer/ws/workspace/models/smolvla_model/smolvla210_40000/ \
-    --job_name=so101_3color_smolvla210 \
+    --dataset.image_transforms.enable=true \
+    --dataset.image_transforms.random_order=true \
+    --output_dir=/home/jer/ws/workspace/models/smolvla_v3_run2/ \
+    --job_name=so101_3color_smolvla_v3 \
     --policy.device=cuda \
     --wandb.enable=false \
     --policy.push_to_hub=false \
     --steps=40000 \
-    --batch_size=8 \
+    --batch_size=36 \
     --save_freq=2000 \
     --rename_map='{"observation.images.front": "observation.images.camera1",
       "observation.images.top": "observation.images.camera2"}'
@@ -45,9 +51,13 @@ HF_HUB_OFFLINE=1 lerobot-train \
 | `HF_HUB_OFFLINE=1` | 环境变量 | 离线模式，禁止 HuggingFace 联网 |
 | `--policy.path` | 本地路径 | 从本地迁移后的预训练模型加载 |
 | `--policy.load_vlm_weights` | false | VLM 权重不加载（从预训练继承） |
+| `--policy.use_amp` | true | bfloat16 混合精度训练 |
+| `--policy.n_obs_steps` | 4 | 连续 4 帧历史信息 |
 | `--dataset.streaming` | false | 不从网络流式加载数据集 |
+| `--dataset.image_transforms` | true | 轻量图像增强 |
 | `--wandb.enable` | false | 禁用 wandb 在线日志 |
 | `--rename_map` | front→camera1, top→camera2 | 数据集用 front/top，模型期望 camera1/camera2 |
+| `--batch_size` | 36 | 大 batch 加速收敛 |
 | `--save_freq` | 2000 | 每 2000 步保存一个 checkpoint |
 
 ## 三轮训练过程
@@ -101,9 +111,13 @@ checkpoints/020000, 022000, 024000, 025000
 HF_HUB_OFFLINE=1 lerobot-train \
     --policy.path=/home/jer/ws/workspace/models/smolvla_base_migrated \
     --policy.load_vlm_weights=false \
+    --policy.use_amp=true \
+    --policy.n_obs_steps=4 \
     --dataset.repo_id=local/smolvla210 \
     --dataset.root=/home/jer/ws/workspace/datasets/smolvla210 \
     --dataset.streaming=false \
+    --dataset.image_transforms.enable=true \
+    --dataset.image_transforms.random_order=true \
     --output_dir=/home/jer/ws/workspace/models/smolvla_v3_run2/ \
     --job_name=so101_3color_smolvla_v3 \
     --policy.device=cuda \
@@ -119,6 +133,12 @@ HF_HUB_OFFLINE=1 lerobot-train \
 训练速度：
 - batch_size=8：~3.3 step/s，40000 步约 3.3 小时
 - batch_size=36：~1.0 step/s，40000 步约 11 小时（RTX 5070 12GB 满载）
+
+V3 相比 V1/V2 的主要增强：
+- `use_amp=true`：开启 bfloat16 混合精度，节省显存
+- `n_obs_steps=4`：使用连续 4 帧历史信息，增强时序感知
+- `image_transforms.enable=true`：轻量图像增强（亮度/对比度 ±10%），提升泛化能力
+- `batch_size=36`：大 batch 加速收敛
 
 ## 训练产出
 

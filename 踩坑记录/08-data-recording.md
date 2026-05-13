@@ -278,7 +278,7 @@ python -m lerobot.scripts.lerobot_dataset_viz \
 
 ### 第二批（增强数据）：额外录制，共 120 条
 
-- 每色增加约 40 条，包含更多光照变化和随机放置
+- 每色增加 **40 条**（20 only + 20 干扰），包含更多光照变化和随机放置
 - 部分场景增加到 20 episodes（如橙色 +1干扰 round2 录了 20 条）
 
 #### 橙色 round2 录制示例（20 条，num_episodes=20）
