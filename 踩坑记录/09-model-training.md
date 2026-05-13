@@ -1,0 +1,257 @@
+# 9. 模型训练
+
+## 9.1 训练概述
+
+本项目经历了多轮训练，逐步调整策略：
+
+| 轮次 | 输出目录 | 步数 | batch_size | save_freq | 说明 |
+|------|----------|------|------------|-----------|------|
+| 第1轮 | smolvla210 | 10000 | 8 | 1000 | 首次训练测试 |
+| 第2轮 | smolvla210_40000 | 40000 | 8 | 2000 | 从零重训（因 resume bug） |
+| 第3轮 | smolvla_v3_run2 | 40000 | **36** | 2000 | V3版，大 batch 加速训练 |
+
+---
+
+## 9.2 SmolVLA 不支持 --policy.dropout 参数
+
+**现象**：训练时报 `unrecognized arguments: --policy.dropout=0.15`。
+
+**原因**：SmolVLA 的配置类中并没有 `dropout` 字段，这个参数是 ACT 特有的。ACT 和 SmolVLA 的命令参数不完全相同。
+
+**解决**：从 SmolVLA 训练命令中移除 `--policy.dropout` 参数。
+
+---
+
+## 9.3 预训练模型路径配置
+
+SmolVLA 需要从 HuggingFace 的预训练模型开始微调。
+
+**模型文件**：
+- `model.safetensors`（906MB）
+- `config.json`
+
+**两个关键参数**：
+
+```bash
+--policy.path=/home/jer/ws/workspace/models/smolvla_base_migrated \
+--policy.load_vlm_weights=false
+```
+
+**重要**：首次训练前必须先对预训练模型执行 migration：
+
+```bash
+python src/lerobot/processor/migrate_policy_normalization.py \
+    --pretrained-path /home/jer/ws/workspace/models/smolvla_base
+```
+
+否则训练会因 normalizer 缺失而失败。迁移后使用 `_migrated` 后缀的路径。
+
+---
+
+## 9.4 Feature 不匹配：camera1/camera2 vs front/top
+
+**现象**：训练时报 `Missing features: ['observation.images.camera1', 'observation.images.camera2']`。
+
+**原因**：SmolVLA 预训练模型期望的摄像头名称是 `camera1`/`camera2`，而录制数据集使用的是 `front`/`top`。
+
+**解决**：训练命令中添加 `--rename_map`：
+
+```bash
+--rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+```
+
+---
+
+## 9.5 Resume 训练时 Optimizer 配置缺失
+
+**现象**：使用 `--resume=true` 继续训练时报：
+```
+ValueError: Optimizer config is required but not provided in TrainPipelineConfig
+```
+
+**原因**：这是 LeRobot 框架的一个 Bug：
+1. 训练配置（checkpoint 中的 `train_config.json`）没有保存 optimizer 和 scheduler 的完整配置
+2. `use_policy_training_preset=true` 时，只有在非 resume 模式下才会从 policy 自动获取 optimizer preset
+3. resume 模式下代码逻辑没有正确加载 optimizer 配置
+
+**尝试失败的方案**：
+- `--resume=true` + `--use_policy_training_preset=true` → 失败
+- `--resume=true` + `--use_policy_training_preset=false` + 手动指定 optimizer/scheduler 参数 → 失败（draccus 解析器有 bug，见 9.6）
+
+**最终解决方案（绕过去）**：不使用 `--resume`，而是直接把 checkpoint 路径作为 `policy.path`，从头开始新一轮训练：
+
+```bash
+lerobot-train \
+    --policy.path=/path/to/checkpoint/025000/pretrained_model \
+    --steps=40000 \
+    ...
+```
+
+这样虽然训练步数从 0 开始计数，但模型权重是从 checkpoint 继承的。**本项目第2轮训练就是通过这种方式执行的**。
+
+---
+
+## 9.6 命令行参数解析错误（draccus Bug）
+
+**现象**：使用嵌套参数格式如 `--optimizer.lr=1e-4` `--scheduler.num_warmup_steps=1000` 时报：
+```
+TypeError: 'str' object does not support item assignment
+```
+
+**原因**：draccus（LeRobot 使用的命令行解析库）在处理嵌套参数时有问题。
+
+**解决**：避免复杂的嵌套命令行参数，改用配置文件或 checkpoint 路径方式。
+
+---
+
+## 9.7 离线训练配置
+
+由于目标机器网络不通，训练必须离线进行：
+
+```bash
+HF_HUB_OFFLINE=1 lerobot-train \
+    --policy.path=/本地/模型/路径 \
+    --dataset.repo_id=local/数据集名 \
+    --dataset.root=/本地/数据集/路径 \
+    --dataset.streaming=false \
+    --policy.push_to_hub=false \
+    --wandb.enable=false \
+    ...
+```
+
+关键参数：
+- `HF_HUB_OFFLINE=1`：环境变量，禁止 HuggingFace Hub 联网
+- `--dataset.repo_id=local/xxx`：本地数据集标识
+- `--dataset.root=/本地路径`：数据集本地路径
+- `--dataset.streaming=false`：不从网络流式加载
+- `--wandb.enable=false`：禁用 wandb 在线日志
+
+---
+
+## 9.8 训练速度参考
+
+本项目硬件 RTX 5070 12GB：
+- batch_size=8 时约 **3.3 step/s**，40000 步约 3.3 小时
+- batch_size=36 时约 **1.0 step/s**（单步计算量大但总收敛更快），40000 步约 11 小时
+- 25000 步（batch_size=8）约 2.1 小时
+- 10000 步（batch_size=8）约 50 分钟
+
+---
+
+## 9.9 第1轮训练（10000步）
+
+```bash
+HF_HUB_OFFLINE=1 lerobot-train \
+    --policy.path=/home/jer/ws/workspace/models/smolvla_base_migrated \
+    --policy.load_vlm_weights=false \
+    --dataset.repo_id=local/smolvla210 \
+    --dataset.root=/home/jer/ws/workspace/datasets/smolvla210 \
+    --dataset.streaming=false \
+    --output_dir=/home/jer/ws/workspace/models/smolvla_model/smolvla210/ \
+    --job_name=so101_3color_smolvla210 \
+    --policy.device=cuda \
+    --wandb.enable=false \
+    --policy.push_to_hub=false \
+    --steps=10000 \
+    --batch_size=8 \
+    --save_freq=1000 \
+    --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+```
+
+### 第1轮检查点
+
+| 步数 | 路径 |
+|------|------|
+| 10000 | `checkpoints/010000` |
+| 12000 | `checkpoints/012000` |
+| 14000 | `checkpoints/014000` |
+| 16000 | `checkpoints/016000` |
+| 18000 | `checkpoints/018000` |
+| 20000 | `checkpoints/020000` |
+| 22000 | `checkpoints/022000` |
+| 24000 | `checkpoints/024000` |
+| 25000 | `checkpoints/025000` |
+
+---
+
+## 9.10 第2轮训练（40000步，从零重训）
+
+由于 resume bug 无法继续训练，决定从 zero checkpoint 开始重训到 40000 步：
+
+```bash
+HF_HUB_OFFLINE=1 lerobot-train \
+    --policy.path=/home/jer/ws/workspace/models/smolvla_base_migrated \
+    --policy.load_vlm_weights=false \
+    --dataset.repo_id=local/smolvla210 \
+    --dataset.root=/home/jer/ws/workspace/datasets/smolvla210 \
+    --dataset.streaming=false \
+    --output_dir=/home/jer/ws/workspace/models/smolvla_model/smolvla210_40000/ \
+    --job_name=so101_3color_smolvla210 \
+    --policy.device=cuda \
+    --wandb.enable=false \
+    --policy.push_to_hub=false \
+    --steps=40000 \
+    --batch_size=8 \
+    --save_freq=2000 \
+    --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+```
+
+---
+
+## 9.11 第3轮训练（V3版，40000步，batch_size=36）
+
+使用更大 batch size 加速收敛：
+
+```bash
+HF_HUB_OFFLINE=1 lerobot-train \
+    --policy.path=/home/jer/ws/workspace/models/smolvla_base_migrated \
+    --policy.load_vlm_weights=false \
+    --dataset.repo_id=local/smolvla210 \
+    --dataset.root=/home/jer/ws/workspace/datasets/smolvla210 \
+    --dataset.streaming=false \
+    --output_dir=/home/jer/ws/workspace/models/smolvla_v3_run2/ \
+    --job_name=so101_3color_smolvla_v3 \
+    --policy.device=cuda \
+    --wandb.enable=false \
+    --policy.push_to_hub=false \
+    --steps=40000 \
+    --batch_size=36 \
+    --save_freq=2000 \
+    --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+```
+
+**V3 与之前版本的差异**：
+- batch_size 从 8 提升到 36，大幅加快收敛速度
+- 训练时长约 11 小时（RTX 5070 12GB 满载）
+
+---
+
+## 9.12 数据集结构要求
+
+LeRobot 期望的本地数据集目录结构：
+
+```
+datasets/smolvla210/
+├── data/
+│   ├── chunk-000/
+│   │   ├── episode_000000.parquet
+│   │   ├── episode_000001.parquet
+│   │   └── ...
+│   └── ...
+├── meta/
+│   ├── info.json    # 数据集元信息（feature 列表等）
+│   └── stats.json   # 归一化统计信息
+└── videos/
+    ├── observation.images.front/
+    │   └── episode_000000/
+    │       ├── step_000000.mp4
+    │       └── ...
+    └── observation.images.top/
+        └── ...
+```
+
+**如果需要改名**（如 front→camera1），需要同步修改：
+1. `meta/info.json` 中的 features 名称
+2. `videos/` 下的文件夹名称
+3. episode parquet 的列名
+4. `meta/stats.json` 中的 key
