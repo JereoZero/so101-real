@@ -11,7 +11,7 @@
 | 2 | [02-network.md](./02-network.md) | 网络相关问题（GitHub 慢、GnuTLS、HuggingFace 被墙） |
 | 3 | [03-nvidia-driver.md](./03-nvidia-driver.md) | NVIDIA 驱动与 CUDA（BIOS更新、open版驱动、Resizable BAR等） |
 | 4 | [04-lerobot-env.md](./04-lerobot-env.md) | LeRobot 环境安装（Python、依赖、SDK冲突） |
-| 5 | [05-so101-hardware.md](./05-so101-hardware.md) | SO101 机械臂硬件（电机ID、夹爪扭矩、串口、udev、红灯） |
+| 5 | [05-so101-hardware.md](./05-so101-hardware.md) | 幻尔（Huaner）SO101 机械臂硬件（电机ID/夹爪扭矩/串口/udev/红灯） |
 | 6 | [06-camera.md](./06-camera.md) | 摄像头配置（fourcc、占用、by-id vs index、GUI依赖） |
 | 7 | [07-source-modifications.md](./07-source-modifications.md) | LeRobot 源码修改（wrist_roll、夹爪、容错、teleop修复） |
 | 8 | [08-data-recording.md](./08-data-recording.md) | 数据录制（teleop参数、键位、难点、光照控制、fixed_joints） |

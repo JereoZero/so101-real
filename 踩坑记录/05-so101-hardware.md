@@ -1,50 +1,31 @@
 # 5. SO101 机械臂硬件
 
-## 5.1 电机 ID 冲突/识别错误
+## 5.1 电机 ID 错误排查全过程
 
-**现象**：只连接了 6 个电机，但扫描发现 ID 不对（如 ID=3 被识别为 ID=6，或者只检测到 ID=1,2,6 缺少 3,4,5）。
+**现象**：只连接了 6 个电机，但用脚本扫描时发现：
+- ID 6 有时能识别到，有时识别不到（不稳定）
+- ID 3 始终扫描不到
+- 总共只能找到 5 个稳定的电机
 
-**原因**：电机出厂 ID 可能有误，或者被人为修改过。Feetech 电机支持软件修改 ID。
+**排查过程**：尝试了多种排查手段都没找到原因，最终采用最直接的方法——**逐个物理拔线**：
 
-**排查**：先用脚本扫描所有电机 ID：
+1. 先把机械臂上 6 个电机一一编号，确认各自对应的 ID
+2. 逐个拔掉电机连接线，每次拔一个后重新扫描，观察哪个 ID 消失了
+3. 发现：拔掉物理位置为 ID 3 的电机后，ID 6 变得完全识别不到了
+4. 而 ID 3 本来就从没出现过——**说明物理 ID 3 的电机被错误编程成了 ID 6**
 
-```python
-from lerobot.motors.feetech import FeetechMotorsBus
-from lerobot.motors import Motor, MotorNormMode
+**根因**：电机#3（elbow_flex 关节）出厂时或之前被误写成了 ID 6，导致总线上有两个 ID 6（一个正确的一个错误的），产生了冲突。两个 ID 6 竞争总线，导致识别不稳定。
 
-test_motors = {
-    1: Motor(1, 'sts3215', MotorNormMode.DEGREES),
-    2: Motor(2, 'sts3215', MotorNormMode.DEGREES),
-    3: Motor(3, 'sts3215', MotorNormMode.DEGREES),
-    4: Motor(4, 'sts3215', MotorNormMode.DEGREES),
-    5: Motor(5, 'sts3215', MotorNormMode.DEGREES),
-    6: Motor(6, 'sts3215', MotorNormMode.RANGE_0_100),
-}
-
-bus = FeetechMotorsBus('/dev/ttyACM0', test_motors)
-bus.connect()
-
-print('扫描电机 ID 1-6...')
-for motor_id in range(1, 7):
-    try:
-        bus.write('Torque_Enable', motor_id, 0)
-        print(f'  ID {motor_id}: 存在')
-    except Exception as e:
-        print(f'  ID {motor_id}: 不存在')
-
-bus.disconnect()
-```
-
-**修复**：用 Python 重新设置电机 ID：
+**解决**：用 SDK 将错误的 ID 6 写回正确的 ID 3，断电重启后验证。
 
 ```python
 bus = FeetechMotorsBus('/dev/ttyACM0', test_motors)
 bus.connect()
-bus.write('ID', 6, 3)   # 把 ID=6 改回 ID=3
+bus.write('ID', 6, 3)   # 把错误的 ID=6 写回正确的 ID=3
 bus.disconnect()
 ```
 
-**重要**：修改 ID 后需要断电重启才能生效。
+**核心教训**：电机 ID 冲突导致的不稳定识别很难靠软件排查，物理拔线逐一定位是最可靠的。
 
 ---
 

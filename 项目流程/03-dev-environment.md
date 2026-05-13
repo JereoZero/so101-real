@@ -12,9 +12,10 @@ conda activate lerobot
 
 ### 安装 LeRobot（源码方式）
 
-选择 `pip install -e .` 源码安装而非 `pip install lerobot`，因为项目需要修改 LeRobot 源码。
+先 clone 官方源码，再以可编辑模式安装。选择 `pip install -e .` 源码安装而非 `pip install lerobot`，因为项目需要修改 LeRobot 源码。
 
 ```bash
+git clone https://github.com/huggingface/lerobot.git ~/workspace/projects/lerobot
 cd ~/workspace/projects/lerobot
 pip install -e .
 ```
@@ -111,12 +112,12 @@ LeRobot 官方代码不完全适配 SO101 硬件，需要做 4 处修改：
 
 ## 双摄像头配置
 
-| 摄像头 | 位置 | index | 格式 | 分辨率 | 帧率 |
-|--------|------|-------|------|--------|------|
-| front | 末端（爪子视角） | 2 | YUYV | 640×480 | 30fps |
-| top | 顶部固定（第三视角） | 0 | MJPG | 640×480 | 30fps |
+| 摄像头 | 来源 | 位置 | index | 格式 | 分辨率 | 帧率 |
+|--------|------|------|-------|------|--------|------|
+| front | 幻尔（Huaner） | 末端（爪子视角） | 2 | YUYV | 640×480 | 30fps |
+| top | 幻尔（Huaner） | 顶部固定（第三视角） | 0 | MJPG | 640×480 | 30fps |
 
-**注意**：两个摄像头支持的四字符码（fourcc）不同，front 用 YUYV、top 用 MJPG。需要逐个测试确认而非统一配置。
+**注意**：两个摄像头均为普通 RGB 摄像头，不带深度功能。
 
 ```bash
 # 查找可用摄像头
