@@ -87,3 +87,24 @@ ls /dev/v4l/by-id/
 | front（爪子视角） | 2 | `usb-icSpring_icspring_camera_202404160005-video-index0` |
 
 **注意**：换 USB 口后 index 可能重新分配，用 `lerobot-find-cameras opencv` 重新确认。
+
+**完整的 by-id 路径**（调试时可直接使用）：
+
+```
+爪子摄像头  by-id: /dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0
+第三视角    by-id: /dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0
+```
+
+---
+
+## 6.6 摄像头测试脚本
+
+项目中有两个测试脚本用于验证摄像头配置：
+
+```bash
+# 实时预览摄像头
+python /home/jer/ws/temp/test_preview.py
+
+# 录制测试视频
+python /home/jer/ws/temp/test_video.py
+```
