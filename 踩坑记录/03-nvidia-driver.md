@@ -74,7 +74,7 @@ sudo apt-get install -y nvidia-driver-580-open
 sudo reboot
 ```
 
-**关键教训**：如果之前装过专有版驱动，必须连同 `nvidia-dkms-580` 一起彻底卸载，否则残留的 DKMS 模块会干扰新驱动的编译。最终验证通过 —— 驱动 580.126.20，CUDA 13.0，PyTorch 正常识别 GPU。
+**关键教训**：如果之前装过专有版驱动，必须连同 `nvidia-dkms-580` 一起彻底卸载，否则残留的 DKMS 模块会干扰新驱动的编译。最终验证通过 —— 驱动 580-open，CUDA 13.0，PyTorch 正常识别 GPU。
 
 ---
 
@@ -143,7 +143,7 @@ sudo apt install gcc-12
 
 | 组件 | 版本 |
 |------|------|
-| NVIDIA 驱动 | 580.126.20 (open) |
+| NVIDIA 驱动 | 580-open |
 | CUDA | 13.0 |
 | PyTorch | 2.10.0+cu128 |
 

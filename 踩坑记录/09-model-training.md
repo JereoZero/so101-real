@@ -145,9 +145,7 @@ conda uninstall -y opencv && pip install opencv-python-headless==4.10.0.84 && pi
 
 **修复后必须重新打开终端**，确保环境变量生效。
 
-**背景**：LeRobot 的 `pyproject.toml` 明确要求 `numpy>=2.0.0,<2.3.0`，上限是因为 `opencv-python-headless` 的兼容性。项目中使用的版本为：
-- numpy: 2.2.6
-- opencv-python-headless: 4.10.0.84
+**背景**：LeRobot 的 `pyproject.toml` 明确要求 `numpy>=2.0.0,<2.3.0`，上限是因为 `opencv-python-headless` 的兼容性。
 
 ---
 

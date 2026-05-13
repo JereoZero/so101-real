@@ -143,19 +143,18 @@ ip a show ens33
 | smolvla210_40000 | `smolvla_model/smolvla210_40000/` | 40000 | 8 | 2000 | 重训版 |
 | smolvla_v3_run2 | `smolvla_v3_run2/` | 40000 | **36** | 2000 | V3 推理 |
 
-## G. 核心 Python 包版本
+## G. 核心 Python 包
 
-| 包名 | 版本 | 用途 |
-|------|------|------|
-| python | 3.10.x | 运行环境 |
-| torch | 2.10.0+cu128 | 深度学习框架 |
-| lerobot | 0.5.1 (dev) | 机器人学习框架 |
-| numpy | 2.2.6 | 数值计算 |
-| opencv-python-headless | 4.10.0.84 | 图像处理（无GUI） |
-| mujoco | 3.6.0 | 机器人仿真 |
-| scservo_sdk | 1.0.0 | Feetech 舵机通信 |
-| feetech-servo-sdk | 1.0.0 | LeRobot 舵机驱动 |
-| gymnasium | 1.2.3 | 强化学习环境 |
+| 包名 | 用途 |
+|------|------|
+| torch (PyTorch) | 深度学习框架 |
+| lerobot | 机器人学习框架 |
+| numpy | 数值计算 |
+| opencv-python-headless | 图像处理（无GUI） |
+| mujoco | 机器人仿真 |
+| scservo_sdk | Feetech 舵机通信 |
+| feetech-servo-sdk | LeRobot 舵机驱动 |
+| gymnasium | 强化学习环境 |
 
 ## H. single_task 指令完整对照表
 
