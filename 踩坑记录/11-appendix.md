@@ -43,6 +43,16 @@ python -m lerobot.scripts.lerobot_dataset_viz \
     --repo-id jer/xxx \
     --episode-index 0 \
     --mode local
+
+# 查看数据集信息
+lerobot-info --dataset.repo_id=jer/xxx
+
+# 查看机器人信息
+lerobot-info --robot.type=so101_follower
+
+# 查看训练曲线
+tensorboard --logdir=outputs/
+# 然后打开浏览器访问 http://localhost:6006
 ```
 
 ## B. 常用诊断命令
@@ -132,3 +142,29 @@ ip a show ens33
 | smolvla210 | `smolvla_model/smolvla210/` | 10000→25000 | 8 | 1000 | V1/V2 推理 |
 | smolvla210_40000 | `smolvla_model/smolvla210_40000/` | 40000 | 8 | 2000 | 重训版 |
 | smolvla_v3_run2 | `smolvla_v3_run2/` | 40000 | **36** | 2000 | V3 推理 |
+
+## G. 核心 Python 包版本
+
+| 包名 | 版本 | 用途 |
+|------|------|------|
+| python | 3.10.x | 运行环境 |
+| torch | 2.10.0+cu128 | 深度学习框架 |
+| lerobot | 0.5.1 (dev) | 机器人学习框架 |
+| numpy | 2.2.6 | 数值计算 |
+| opencv-python-headless | 4.10.0.84 | 图像处理（无GUI） |
+| mujoco | 3.6.0 | 机器人仿真 |
+| scservo_sdk | 1.0.0 | Feetech 舵机通信 |
+| feetech-servo-sdk | 1.0.0 | LeRobot 舵机驱动 |
+| gymnasium | 1.2.3 | 强化学习环境 |
+
+## H. single_task 指令完整对照表
+
+SmolVLA 推理时需要根据任务指令判断操作哪个颜色的方块，因此必须使用分颜色指令：
+
+| 颜色 | 指令 |
+|------|------|
+| 绿色方块 | `put small green block in plate` |
+| 葡萄紫方块 | `put small grape block in plate` |
+| 橙色方块 | `put small orange block in plate` |
+
+**注意**：录制时的 `single_task` 指令必须与推理时一致，否则模型无法正确理解要操作的目标颜色。

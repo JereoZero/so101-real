@@ -47,6 +47,21 @@ lerobot-record \
 
 **为什么用 9999**：设置为极大值后，复位阶段不会自动超时，你有充足时间手动调整场景（摆方块、换干扰物等），准备好后按键继续。
 
+### 8.2.1 参数演变历史
+
+录制参数不是一开始就定好的，经历了多轮迭代才找到最佳配置：
+
+| 阶段 | episode_time_s | reset_time_s | single_task |
+|------|---------------|-------------|-------------|
+| **最初** | 10 | 5 | `Put small block in plate`（通用） |
+| **中期** | 20 | 9999 | `put small green block in plate`（分颜色） |
+| **最终** | 20 | 9999 | 分颜色指令（绿/葡萄紫/橙） |
+
+**演变原因**：
+- `episode_time_s` 从 10 秒延长到 20 秒：10 秒太短，动作做不完就自动超时切断了
+- `reset_time_s` 从 5 秒改为 9999 秒：自动复位时间太短，来不及重新摆放方块和盘子，改为完全手动控制
+- 任务指令从通用改为分颜色：SmolVLA 推理时需要根据指令判断抓哪个颜色，通用指令无法区分
+
 ---
 
 ## 8.3 手动控制键位
@@ -266,6 +281,29 @@ python -m lerobot.scripts.lerobot_dataset_viz \
 - 每色增加约 40 条，包含更多光照变化和随机放置
 - 部分场景增加到 20 episodes（如橙色 +1干扰 round2 录了 20 条）
 
+#### 橙色 round2 录制示例（20 条，num_episodes=20）
+
+```bash
+sudo chmod 666 /dev/ttySO101_FOLLOWER /dev/ttySO101_LEADER
+
+lerobot-record \
+    --robot.type=so101_follower \
+    --robot.port=/dev/ttySO101_FOLLOWER \
+    --robot.id=j_follower \
+    --robot.fixed_joints="{wrist_roll: -67.74}" \
+    --robot.cameras="{front: {type: opencv, index_or_path: 2, fps: 30, width: 640, height: 480, fourcc: YUYV}, top: {type: opencv, index_or_path: 0, fps: 30, width: 640, height: 480, fourcc: MJPG}}" \
+    --teleop.type=so101_leader \
+    --teleop.port=/dev/ttySO101_LEADER \
+    --teleop.id=j_leader \
+    --display_data=true \
+    --dataset.repo_id=jer/so101_3color_orange_round2_plus1_v1 \
+    --dataset.push_to_hub=false \
+    --dataset.num_episodes=20 \
+    --dataset.single_task="put small orange block in plate" \
+    --dataset.episode_time_s=20 \
+    --dataset.reset_time_s=9999
+```
+
 ### 总计：210 条（每色约 70 条）
 
 ---
@@ -281,3 +319,32 @@ python -m lerobot.scripts.lerobot_dataset_viz \
 - 橙色 only：`jer/so101_3color_orange_only_v1`
 - 橙色 +1：`jer/so101_3color_orange_plus1_v1`
 - 橙色 +2：`jer/so101_3color_orange_plus2_v1`
+
+---
+
+## 8.15 数据集质量检查清单
+
+录制完成后，对照以下检查清单逐项确认数据质量：
+
+| 类别 | 检查项 | 本项目状态 |
+|------|--------|-----------|
+| 📷 图像 | 至少 2 个摄像头视角 | ✅ front + top |
+| 📷 图像 | 摄像头稳定不抖动 | ✅ |
+| 📷 图像 | 中性光照（不偏黄/蓝） | ⚠️ 通过拉窗帘控制 |
+| 📷 图像 | 一致的曝光和对焦 | ✅ |
+| 📷 图像 | 主臂不在画面中 | ✅ |
+| 📷 图像 | 只有从臂和物体在移动 | ✅ |
+| 📷 图像 | 静态/干净背景 | ⚠️ 需注意桌面杂物 |
+| 📷 图像 | 分辨率 ≥ 480p | ✅ 640x480 |
+| ⚙️ 协议 | 正确的机器人类型 | ✅ so101_follower |
+| ⚙️ 协议 | 摄像头 ~30 FPS | ✅ |
+| ⚙️ 协议 | 删除 episode 后更新元数据 | ⚠️ 手动处理 |
+| 🏷️ 命名 | 标准命名 `front`/`top` | ✅ |
+| 🏷️ 命名 | 不使用设备特定名称 | ✅ |
+| 📝 标注 | 精确描述机器人任务 | ✅ 25-50字符 |
+| 📝 标注 | 任务指令针对不同颜色 | ✅ 三个独立指令 |
+
+**重点关注**：
+- 光照一致性是最大的难点，需要用窗帘严格控制环境光
+- 背景杂物会影响模型注意力，录制前清理桌面
+- 如果删除了某个 episode，需要更新 `meta/info.json` 中的元数据

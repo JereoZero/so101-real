@@ -138,6 +138,29 @@ HF_HUB_OFFLINE=1 lerobot-train \
 
 ---
 
+## 9.13 OpenCV/numpy 版本冲突
+
+**现象**：训练或回放数据时报：
+```
+AttributeError: module 'numpy' has no attribute 'ndarray'
+```
+
+**原因**：conda 安装的 opencv 与 pip 安装的 opencv-python-headless 产生库冲突，叠加 numpy 版本不兼容（LeRobot 要求 `numpy>=2.0.0,<2.3.0`）。
+
+**一键修复**：
+
+```bash
+conda uninstall -y opencv && pip install opencv-python-headless==4.10.0.84 && pip install "numpy<2.3.0,>=2.0.0"
+```
+
+**修复后必须重新打开终端**，确保环境变量生效。
+
+**背景**：LeRobot 的 `pyproject.toml` 明确要求 `numpy>=2.0.0,<2.3.0`，上限是因为 `opencv-python-headless` 的兼容性。项目中使用的版本为：
+- numpy: 2.2.6
+- opencv-python-headless: 4.10.0.84
+
+---
+
 ## 9.9 第1轮训练（10000步）
 
 ```bash
