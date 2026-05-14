@@ -8,7 +8,7 @@
 | 章节 | 文件 | 内容 |
 |------|------|------|
 | 1 | [01-ubuntu-system.md](./01-ubuntu-system.md) | Ubuntu 系统环境搭建（黑屏、分辨率、自动更新、休眠、SSH等） |
-| 2 | [02-network.md](./02-network.md) | 网络相关问题（GitHub 慢、GnuTLS、HuggingFace 被墙） |
+| 2 | [02-network.md](./02-network.md) | 网络相关问题（GitHub/HF 不稳定 → 笔记本下载后 LocalSend 传） |
 | 3 | [03-nvidia-driver.md](./03-nvidia-driver.md) | NVIDIA 驱动与 CUDA（BIOS更新、open版驱动、Resizable BAR等） |
 | 4 | [04-lerobot-env.md](./04-lerobot-env.md) | LeRobot 环境安装（Python、依赖、SDK冲突） |
 | 5 | [05-so101-hardware.md](./05-so101-hardware.md) | 幻尔（Huaner）SO101 机械臂硬件（电机ID/夹爪扭矩/串口/udev/红灯） |
