@@ -94,21 +94,21 @@ myso101/
 
 ### 物理环境
 
-![实验环境](images/环境.jpg)
+<img src="images/环境.jpg" alt="实验环境" width="600">
 
-![干扰环境示例](images/干扰环境.jpg)
+<img src="images/干扰环境.jpg" alt="干扰环境示例" width="600">
 
 ### 数据采集回放
 
-![数据回放](images/数据回放.mp4)
+[▶ 点击播放：数据回放演示](images/数据回放.mp4)
 
 ### 模型训练
 
-![训练完成](images/训完模型.jpg)
+<img src="images/训完模型.jpg" alt="训练完成" width="600">
 
 ### 连续推理演示
 
-![连续推理演示](images/连续推理演示demo.mp4)
+[▶ 点击播放：连续推理演示](images/连续推理演示demo.mp4)
 
 ## 快速导航
 

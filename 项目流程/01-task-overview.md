@@ -43,12 +43,12 @@
 - **front 摄像头**：安装在机械臂末端，提供爪子视角
   - 型号：幻尔 GC2083，200W像素，160°视场角，MJPG/YUYV输出
 
-  ![front摄像头参数](../images/camera1.jpg)
+  <img src="../images/camera1.jpg" alt="front摄像头参数" width="600">
 
 - **top 摄像头**：固定在顶部，提供第三视角俯视图
   - 型号：幻尔 GC0308，30W像素，80°视场角，680×480分辨率
 
-  ![top摄像头参数](../images/camare2.jpg)
+  <img src="../images/camare2.jpg" alt="top摄像头参数" width="600">
 
 ## 工作模式
 
