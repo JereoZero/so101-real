@@ -141,7 +141,7 @@ lerobot-record \
 
 录制完成应立即回放验证质量，避免事后才发现问题需要重录。
 
-<video src="../images/数据回放.mp4" controls width="100%"></video>
+![数据回放](../images/数据回放.mp4)
 
 ```bash
 # 驱动机械臂回放

@@ -2,7 +2,7 @@
 
 ## 连续推理演示
 
-<video src="../images/连续推理演示demo.mp4" controls width="100%"></video>
+![连续推理演示](../images/连续推理演示demo.mp4)
 
 ## 模型导出
 

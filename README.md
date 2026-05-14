@@ -100,7 +100,7 @@ myso101/
 
 ### 数据采集回放
 
-<video src="images/数据回放.mp4" controls width="100%"></video>
+![数据回放](images/数据回放.mp4)
 
 ### 模型训练
 
@@ -108,7 +108,7 @@ myso101/
 
 ### 连续推理演示
 
-<video src="images/连续推理演示demo.mp4" controls width="100%"></video>
+![连续推理演示](images/连续推理演示demo.mp4)
 
 ## 快速导航
 
