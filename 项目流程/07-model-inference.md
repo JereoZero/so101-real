@@ -1,5 +1,9 @@
 # 7. 模型推理
 
+## 连续推理演示
+
+<video src="../images/连续推理演示demo.mp4" controls width="100%"></video>
+
 ## 模型导出
 
 训练生成的 checkpoint 目录结构为 `checkpoints/{step}/pretrained_model/`。推理时代码期望 `pretrained_model/` 内部的文件在目标目录的根层级，因此需要"去壳"复制：
