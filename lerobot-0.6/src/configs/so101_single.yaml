@@ -1,0 +1,22 @@
+# SO-101 single-arm test configuration.
+# Use this when only the leader arm and front camera are connected.
+#
+# Current setup (2026-07-20):
+#   - Leader arm: /dev/serial/by-id/usb-1a86_USB_Single_Serial_5B3E121553-if00
+#   - Front camera (gripper view): /dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0, YUYV, 640x480@30
+#
+# Confirmed by unplugging the leader arm.
+
+teleop:
+  type: so101_leader
+  port: /dev/serial/by-id/usb-1a86_USB_Single_Serial_5B3E121553-if00
+  id: j_leader
+
+cameras:
+  front:
+    type: opencv
+    index_or_path: /dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0
+    fps: 30
+    width: 640
+    height: 480
+    fourcc: YUYV

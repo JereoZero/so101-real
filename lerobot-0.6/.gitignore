@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LeRobot outputs (large / generated)
+data/*
+!data/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# Model checkpoints (large binary files)
+checkpoints/*
+!checkpoints/.gitkeep
+
+# HuggingFace cache
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# Logs
+*.log
+logs/
