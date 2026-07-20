@@ -110,7 +110,61 @@ myso101/
 
 ![连续推理演示](images/连续推理演示demo.gif)
 
+---
+
+## LeRobot v0.6.0 版本（`lerobot-0.6/`）
+
+> 本项目原基于 LeRobot **v0.5.1**（v0.1.x ~ v0.2.x）。  
+> 当前已开始在 **v0.6.0** 上的适配工作，存放于 [`lerobot-0.6/`](./lerobot-0.6/) 目录。
+
+### 版本状态
+
+| 版本 | 基于 LeRobot | 状态 | 说明 |
+|------|-------------|------|------|
+| v0.1.0 | v0.5.1 | 已完成 | 初始版本，环境搭建、数据录制、训练、推理全流程 |
+| v0.2.0 | v0.5.1 | 已完成 | 优化迭代，含多轮录制、训练、推理 |
+| **v0.3.0** | **v0.6.0** | **进行中** | 迁移至 v0.6.0，利用新特性（见下方） |
+
+### v0.6.0 新增/变化
+
+| 类别 | 变化 | 说明 |
+|------|------|------|
+| 真机部署 | `lerobot-rollout` | 替代 v0.5.x 的 `lerobot-eval` 进行真机推理，支持自主运行、DAgger 人机回环、连续录制 |
+| 数据录制 | 自动时间戳 | `repo_id` 自动追加时间戳，防止覆盖 |
+| 数据录制 | 流式编码 | `--dataset.streaming_encoding=true` 实时编码，episode 保存几乎无等待 |
+| 数据回放 | `lerobot-replay` | 独立命令回放数据集到真机，不再依赖 `lerobot-record --replay` |
+| DAgger | 原生支持 | 人机回环纠错：模型出错时人类可接管纠正，数据自动保存再训练 |
+| RTC 推理 | `--inference.type=rtc` | 慢速 VLA 实时 chunk 推理，适合 SmolVLA / Pi0 |
+
+### 当前进度（v0.3.0）
+
+- [x] 项目骨架搭建（configs、scripts、docs）
+- [x] 硬件连接与设备 ID 配置
+- [x] 机械臂校准（含 LeRobot 源码 patch）
+- [x] 遥操作测试
+- [x] 主臂通信故障容错 patch
+- [x] 从臂 `wrist_roll` 固定角度配置
+- [ ] 数据录制与验证
+- [ ] 模型训练（SmolVLA / ACT / Diffusion）
+- [ ] 真机推理部署（`lerobot-rollout`）
+- [ ] 版本迭代优化
+
+### 文档
+
+详细操作文档见 [`lerobot-0.6/docs/`](./lerobot-0.6/docs/)：
+
+1. [硬件连接与上电](./lerobot-0.6/docs/01-hardware-setup.md)
+2. [机械臂校准](./lerobot-0.6/docs/02-calibration.md)
+3. [遥操作测试](./lerobot-0.6/docs/03-teleoperation.md)
+4. [数据录制](./lerobot-0.6/docs/04-recording.md)
+5. [模型训练](./lerobot-0.6/docs/05-training.md)
+6. [推理部署](./lerobot-0.6/docs/06-inference.md)
+7. [常见问题排查](./lerobot-0.6/docs/07-troubleshooting.md)
+
+---
+
 ## 快速导航
 
 - 遇到了问题 → [踩坑记录/](./踩坑记录/)
 - 想了解项目流程 → [项目流程/workflow.md](./项目流程/workflow.md)
+- LeRobot v0.6.0 版本 → [lerobot-0.6/](./lerobot-0.6/)
