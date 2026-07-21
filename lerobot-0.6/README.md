@@ -316,7 +316,7 @@ cd /home/j/ws/so101
 - [x] 数据录制完成：v1-1 ~ v1-20 共 **199 条** / 52,010 frames
 - [x] 数据合并完成：`so101_grape_put_v1_merged`
 - [x] torchcodec 问题已解决（改用 `--dataset.video_backend=pyav`）
-- [x] 1000 步测试训练通过（batch=8 显存 3.2GB，batch=36 显存 9GB）
+- [x] 1000 步测试训练通过（batch=36 显存 ~10.1GB）
 - [x] 训练命名方案：`v1-1`（0→10k）→ `v1-2`（10k→20k）→ `v1-3`（20k→30k）
 - [ ] **正式训练 SmolVLA v1-1**（batch=36, 10k 步, ~3h）
 - [ ] 推理部署 + 成功率验证
