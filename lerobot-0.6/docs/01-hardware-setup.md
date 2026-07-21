@@ -39,11 +39,11 @@ Linux 已为这两个 USB 串口创建固定 by-id 链接，插拔后路径不�
 
 | 设备 | 角色 | 当前 `/dev` | `/dev/serial/by-id` 路径 |
 |------|------|------------|--------------------------|
-| `ttyACM0` | 从臂（Follower） | `/dev/ttyACM0` | `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B3E121987-if00` |
-| `ttyACM1` | 主臂（Leader） | `/dev/ttyACM1` | `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B3E121553-if00` |
+| `ttyACM0` | 从臂（Follower） | `/dev/ttyACM0` | `<FOLLOWER_PORT>` |
+| `ttyACM1` | 主臂（Leader） | `/dev/ttyACM1` | `<LEADER_PORT>` |
 
-> **已确认**：通过拔掉主臂 USB 验证，消失的是 `/dev/ttyACM1`（序列号 `5B3E121553`），因此该端口为主臂；
-> 剩余 `/dev/ttyACM0`（序列号 `5B3E121987`）为从臂。
+> **已确认**：通过拔掉主臂 USB 验证，消失的是 `/dev/ttyACM1`（序列号 `<LEADER_SERIAL>`），因此该端口为主臂；
+> 剩余 `/dev/ttyACM0`（序列号 `<FOLLOWER_SERIAL>`）为从臂。
 > 如果后续更换 USB 口，可用 `lerobot-find-port` 重新确认。
 
 ### 摄像头
@@ -52,8 +52,8 @@ Linux 已为这两个 USB 串口创建固定 by-id 链接，插拔后路径不�
 
 | 摄像头 | 用途 | `/dev` | `/dev/v4l/by-id` 路径 | fourcc | 分辨率 |
 |--------|------|-------|----------------------|--------|--------|
-| `front` | 爪子视角 | `/dev/video0` | `/dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0` | YUYV | 640x480 |
-| `top` | 顶部第三视角 | `/dev/video2` | `/dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0` | MJPG | 640x480 |
+| `front` | 爪子视角 | `/dev/video0` | `<FRONT_CAM>` | YUYV | 640x480 |
+| `top` | 顶部第三视角 | `/dev/video2` | `<TOP_CAM>` | MJPG | 640x480 |
 
 > 实测第一个摄像头只支持 YUYV，第二个摄像头支持 MJPG，因此按参考项目的格式要求分配为 front/top。
 > OpenCV 索引会随插拔变化，配置文件中已改用 `/dev/v4l/by-id/...` 固定路径。
@@ -75,8 +75,8 @@ udevadm info -a -n /dev/ttyACM1 | grep -E "idVendor|idProduct|serial"
 创建 `/etc/udev/rules.d/99-so101.rules`：
 
 ```
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="5B3E121553", SYMLINK+="ttySO101_LEADER"
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="5B3E121987", SYMLINK+="ttySO101_FOLLOWER"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="<LEADER_SERIAL>", SYMLINK+="ttySO101_LEADER"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="<FOLLOWER_SERIAL>", SYMLINK+="ttySO101_FOLLOWER"
 ```
 
 加载规则：
@@ -103,8 +103,8 @@ sudo udevadm trigger
 
 | 摄像头 | 用途 | by-id 路径 | fourcc | 分辨率 |
 |--------|------|-----------|--------|--------|
-| `front` | 爪子视角 | `/dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0` | YUYV | 640x480 |
-| `top` | 顶部第三视角 | `/dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0` | MJPG | 640x480 |
+| `front` | 爪子视角 | `<FRONT_CAM>` | YUYV | 640x480 |
+| `top` | 顶部第三视角 | `<TOP_CAM>` | MJPG | 640x480 |
 
 ### 确认摄像头
 
@@ -131,8 +131,8 @@ python - <<'PY'
 import cv2
 # 用 by-id 路径测试，避免 index 随插拔变化
 cameras = {
-    'front': '/dev/v4l/by-id/usb-icSpring_icspring_camera-video-index0',
-    'top': '/dev/v4l/by-id/usb-icSpring_icspring_camera_202404160005-video-index0',
+    'front': '<FRONT_CAM>',
+    'top': '<TOP_CAM>',
 }
 for name, path in cameras.items():
     cap = cv2.VideoCapture(path)

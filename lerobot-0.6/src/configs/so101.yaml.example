@@ -1,0 +1,43 @@
+# SO-101 robot configuration template (example).
+# For LeRobot v0.6.0.
+#
+# Copy this file to `so101.yaml` and fill in YOUR machine's device IDs.
+# Find IDs with: ls /dev/serial/by-id/  and  ls /dev/v4l/by-id/
+#
+# This example uses placeholder serial paths. Replace with your actual hardware.
+
+robot:
+  type: so101_follower
+  # Replace with your follower arm's serial port:
+  port: /dev/serial/by-id/usb-1a86_USB_Single_Serial_XXXXXXXXXX-if00
+  id: j_follower
+  # Fix wrist_roll (gripper rotation joint) to a constant angle.
+  # Value is in degrees because use_degrees=true.
+  # Set to null or remove to let the model learn this joint.
+  fixed_joints:
+    wrist_roll: -27.82
+
+teleop:
+  type: so101_leader
+  # Replace with your leader arm's serial port:
+  port: /dev/serial/by-id/usb-1a86_USB_Single_Serial_YYYYYYYYYY-if00
+  id: j_leader
+
+# Camera configuration (matching the reference project):
+# front = gripper/claw view (YUYV), top = third-person view (MJPG)
+# Replace index_or_path with your actual camera device paths.
+cameras:
+  front:
+    type: opencv
+    index_or_path: /dev/v4l/by-id/usb-XXXX_icspring_camera-video-index0
+    fps: 30
+    width: 640
+    height: 480
+    fourcc: YUYV
+  top:
+    type: opencv
+    index_or_path: /dev/v4l/by-id/usb-YYYY_icspring_camera_202404160005-video-index0
+    fps: 30
+    width: 640
+    height: 480
+    fourcc: MJPG

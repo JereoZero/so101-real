@@ -45,3 +45,17 @@ checkpoints/*
 # Logs
 *.log
 logs/
+
+# Local management / context files (NOT for GitHub)
+# These contain machine-specific info: device IDs, ports, proxy, local paths.
+PROJECT_LOG.md
+SESSION_SUMMARY.md
+LOCAL_*.md
+*.local.md
+.env.local
+
+# Real hardware config with machine-specific device IDs (NOT for GitHub).
+# Use so101.yaml.example as the template for others.
+src/configs/so101.yaml
+src/configs/so101_single.yaml
+

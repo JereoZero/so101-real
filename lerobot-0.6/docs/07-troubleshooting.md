@@ -123,3 +123,50 @@ ValueError: Negative values are not allowed: -865
 | `--policy.pretrained_model_path` | `--policy.path` | 训练/推理加载本地模型时参数名已改 |
 | `--dataset.vcodec` | `--dataset.rgb_encoder.vcodec` | 视频编码参数路径已改 |
 | `eval_freq` | `env_eval_freq` | 训练配置中评估频率参数已改名 |
+| `--dataset.repo_id='["a","b"]'` | `lerobot-edit-dataset --operation.type=merge` | v0.6.0 禁用了 MultiLeRobotDataset，需先物理合并 |
+
+## 13. 训练卡在 0% 不动 / torchcodec 加载失败
+
+### 现象
+
+训练启动后卡在 `Training: 0%| | 0/1000 [00:20<?, ?step/s]`，GPU 显存和利用率都很低，日志里有大量 `OSError: libavutil.so.XX: cannot open shared object file` 或 `Could not load libtorchcodec` 错误。
+
+### 原因
+
+LeRobot v0.6.0 默认使用 `torchcodec` 作为视频解码后端。`torchcodec` 需要 FFmpeg 动态库（libavutil/libavcodec 等），而 conda 环境中虽然安装了 FFmpeg 8，但由于 `libopenvino.so` 依赖 `CXXABI_1.3.15`（系统 `libstdc++.so.6` 最高只到 `1.3.13`），导致 `libtorchcodec_core8.so` 加载失败。`find_spec("torchcodec")` 返回 `True`（包已安装），但实际导入时崩溃，训练进程卡在数据加载阶段。
+
+### 解决
+
+训练时加 `--dataset.video_backend=pyav` 强制使用 PyAV 后端：
+
+```bash
+HF_HUB_OFFLINE=1 python src/scripts/train.py \
+  --dataset.video_backend=pyav \
+  ...（其他参数不变）
+```
+
+PyAV 已安装在 lerobot conda 环境中（`av==15.1.0`），功能完整可用，只是比 torchcodec 稍慢（对训练速度影响极小，因为视频解码不是瓶颈）。
+
+### 验证
+
+```bash
+# 测试 pyav 视频解码
+conda run -n lerobot python -c "
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
+ds = LeRobotDataset('local/so101_grape_put_v1_merged', root='/home/j/ws/so101/data/so101_grape_put_v1_merged', video_backend='pyav')
+print(f'OK: {len(ds)} frames, {ds.num_episodes} episodes')
+"
+```
+
+### 长期修复（可选）
+
+如果需要让 torchcodec 正常工作，需要解决 `CXXABI_1.3.15` 缺失问题：
+
+```bash
+# 方案 1：升级系统 libstdc++（风险较大，不推荐）
+# 方案 2：设置 LD_PRELOAD 使用 conda 环境的 libstdc++（需确认版本足够新）
+# 方案 3：卸载 openvino（如果不使用）
+conda remove -n lerobot openvino
+```
+
+当前项目推荐直接使用 `--dataset.video_backend=pyav`，无需额外操作。

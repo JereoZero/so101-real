@@ -144,9 +144,13 @@ myso101/
 - [x] 遥操作测试
 - [x] 主臂通信故障容错 patch
 - [x] 从臂 `wrist_roll` 固定角度配置
-- [ ] 数据录制与验证
-- [ ] 模型训练（SmolVLA / ACT / Diffusion）
-- [ ] 真机推理部署（`lerobot-rollout`）
+- [x] 数据录制：v1-1 ~ v1-20 共 **199 条** / 52,010 frames
+- [x] 数据合并：`so101_grape_put_v1_merged`
+- [x] torchcodec 兼容问题解决（改用 `--dataset.video_backend=pyav`）
+- [x] 1000 步测试训练通过（SmolVLA，batch=36 显存 ~9GB）
+- [ ] **模型训练 SmolVLA v1-1**（10k 步，进行中）
+- [ ] 真机推理部署（`lerobot-rollout` + RTC）
+- [ ] DAgger 人机回环迭代
 - [ ] 版本迭代优化
 
 ### 文档

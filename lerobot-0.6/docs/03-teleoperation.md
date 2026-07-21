@@ -17,10 +17,10 @@ conda activate lerobot
 
 python src/scripts/teleoperate.py \
   --teleop.type=so101_leader \
-  --teleop.port=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B3E121553-if00 \
+  --teleop.port=<LEADER_PORT> \
   --teleop.id=j_leader \
   --robot.type=so101_follower \
-  --robot.port=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B3E121987-if00 \
+  --robot.port=<FOLLOWER_PORT> \
   --robot.id=j_follower
 ```
 
@@ -45,10 +45,12 @@ or type 'c' and press ENTER to run calibration:
 
 本项目在 [`src/configs/so101.yaml`](../../src/configs/so101.yaml) 中把从臂的 `wrist_roll`（夹爪旋转关节）固定为 `-27.82°`。
 
+`teleoperate.py` 启动时会自动从 `so101.yaml` 加载 `fixed_joints` 配置，无需手动传参。
+
 这意味着：
 
 - 遥操作时，主臂 `wrist_roll` 的转动**不会**传递给从臂。
-- 从臂 `wrist_roll` 始终被强制设为 `-67.74°`。
+- 从臂 `wrist_roll` 始终被强制设为 `-27.82°`。
 - 如果你希望测试 `wrist_roll` 的跟随，可以临时注释掉 `src/configs/so101.yaml` 中的 `fixed_joints`。
 
 ## 操作与验证

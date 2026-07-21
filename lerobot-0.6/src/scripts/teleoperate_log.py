@@ -10,10 +10,10 @@ Usage:
     unset PYTHONPATH && conda activate lerobot
     python src/scripts/teleoperate_log.py \
         --teleop.type=so101_leader \
-        --teleop.port=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B3E121553-if00 \
+        --teleop.port=<LEADER_PORT> \
         --teleop.id=j_leader \
         --robot.type=so101_follower \
-        --robot.port=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B3E121987-if00 \
+        --robot.port=<FOLLOWER_PORT> \
         --robot.id=j_follower
 """
 

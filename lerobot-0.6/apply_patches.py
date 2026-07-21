@@ -193,6 +193,29 @@ def main() -> None:
         description="teleop reset fix",
     )
 
+    # 8b. lerobot_record: record the ACTUAL action sent to follower (with fixed_joints
+    #     overrides), not the raw leader action. Otherwise the dataset stores the
+    #     leader's raw action while the follower executes a different (overridden)
+    #     action, causing a train/inference mismatch for fixed joints like wrist_roll.
+    patch_file(
+        "src/lerobot/scripts/lerobot_record.py",
+        old='''        # Write to dataset
+        if dataset is not None:
+            action_frame = build_dataset_frame(dataset.features, action_values, prefix=ACTION)
+            frame = {**observation_frame, **action_frame, "task": single_task}
+            dataset.add_frame(frame)''',
+        new='''        # Write to dataset
+        if dataset is not None:
+            # Use the action actually sent to the robot (which includes fixed_joints
+            # overrides applied inside robot.send_action), NOT the raw teleop action.
+            # Otherwise the dataset records the leader's raw action while the follower
+            # executes a (possibly overridden) different action, causing a mismatch.
+            action_frame = build_dataset_frame(dataset.features, _sent_action, prefix=ACTION)
+            frame = {**observation_frame, **action_frame, "task": single_task}
+            dataset.add_frame(frame)''',
+        description="record actual sent action (fixed_joints aware)",
+    )
+
     # 9. feetech: tolerate motor communication failures during torque enable/disable
     patch_file(
         "src/lerobot/motors/feetech/feetech.py",
