@@ -7,6 +7,7 @@
 - 已完成 [02-calibration.md](02-calibration.md)
 - 主臂、从臂均已校准
 - 机械臂已上电并连接 USB
+- **已执行 `unset PYTHONPATH`**（LeRobot v0.6.0 必须清除 PYTHONPATH 污染）
 
 ## 启动遥操作
 

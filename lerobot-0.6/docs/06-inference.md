@@ -47,7 +47,7 @@ python src/scripts/rollout.py \
 
 | 模型 | 推理速度 | 建议配置 | 5070 显存 |
 |------|---------|---------|----------|
-| ACT / Diffusion | 快 | 默认 `sync` | 充足 |
+| ACT | 快 | 默认 `sync` | 充足 |
 | SmolVLA | 较慢 | 建议 `rtc` | 刚好 |
 | Pi0 / Pi0.5 / EO1 | 很慢 | 必须 `rtc`，但 12GB 可能仍吃紧 | 不足 |
 
@@ -77,148 +77,7 @@ python src/scripts/rollout.py \
 | `--display_data` | false | 推理时不预览，减少开销 |
 | `--fps` | 30 | 控制频率 |
 
-### DAgger 人机回环（模型纠错迭代）
-
-v0.6.0 的 `lerobot-rollout` 支持 DAgger 模式：模型执行时如果出错，人可以接管主臂纠正，纠正数据自动保存用于再训练。
-
-```bash
-python src/scripts/rollout.py \
-  --strategy.type=dagger \
-  --strategy.num_episodes=20 \
-  --inference.type=rtc \
-  --inference.rtc.execution_horizon=10 \
-  --policy.path=/home/j/ws/so101/checkpoints/so101_smolvla_infer \
-  --dataset.repo_id=local/so101_dagger_corrections \
-  --dataset.single_task="put grape block in plate" \
-  --dataset.push_to_hub=false
-```
-
-## DAgger 迭代训练方案（推荐）
-
-> 当前项目已录制约 170+ 条演示数据，计划先达到 200 条后再开始第一次训练。训练完成并验证效果后，可通过 DAgger 迭代进一步提升成功率。
-
-DAgger 的核心价值：模型在实际运行中暴露的失败模式，往往是最难通过静态演示数据覆盖的。让模型在这些失败场景下由人接管纠正，把纠正轨迹保存为新数据，再训练一次，通常比单纯堆数据更有效。
-
-### 推荐迭代流程
-
-```
-阶段 1: 初始演示数据（当前）
-  v1-1 ~ v1-N（计划 200 条）
-        ↓
-阶段 2: 第一次训练
-  合并 → 训练 SmolVLA → 导出模型
-        ↓
-阶段 3: 真机推理测试
-  用 episodic/base 策略跑 20~30 轮，记录失败模式
-        ↓
-阶段 4: DAgger 收集纠正数据
-  针对失败场景，人接管主臂纠正，保存 30~50 条
-        ↓
-阶段 5: 合并数据并重新训练
-  原数据 + DAgger 数据 → 从头训练 v1_dagger 模型
-        ↓
-阶段 6: 再次验证
-  成功率达标则结束；否则重复阶段 3~5
-```
-
-### 方案 A：合并后从头重新训练（第一次 DAgger 推荐）
-
-第一次引入 DAgger 数据时，建议把原数据和纠正数据合并后**从头训练**（加载 `smolvla_base_migrated`，而不是上次训好的 checkpoint）。这样可以避免旧模型的坏习惯被保留，数据分布也更均衡。
-
-```bash
-# 步骤 1：DAgger 收集（在基础模型上执行）
-python src/scripts/rollout.py \
-  --strategy.type=dagger \
-  --strategy.num_episodes=30 \
-  --inference.type=rtc \
-  --inference.rtc.execution_horizon=10 \
-  --policy.path=/home/j/ws/so101/checkpoints/so101_smolvla_infer_v1 \
-  --dataset.repo_id=local/so101_grape_put_v1_dagger \
-  --dataset.single_task="put grape block in plate" \
-  --dataset.push_to_hub=false
-
-# 步骤 2：合并原数据与 DAgger 数据
-lerobot-edit-dataset \
-  --operation.type=merge \
-  --operation.repo_ids='["local/so101_grape_put_v1_merged","local/so101_grape_put_v1_dagger"]' \
-  --operation.roots='["/home/j/ws/so101/data/so101_grape_put_v1_merged","/home/j/ws/so101/data/so101_grape_put_v1_dagger"]' \
-  --new_repo_id=local/so101_grape_put_v1_merged_dagger \
-  --new_root=/home/j/ws/so101/data/so101_grape_put_v1_merged_dagger
-
-# 步骤 3：从头重新训练（加载 base，不是上次 checkpoint）
-python src/scripts/train.py \
-  --policy.path=/home/j/ws/so101/checkpoints/smolvla_base_migrated \
-  --policy.load_vlm_weights=false \
-  --dataset.repo_id=local/so101_grape_put_v1_merged_dagger \
-  --dataset.root=/home/j/ws/so101/data/so101_grape_put_v1_merged_dagger \
-  --dataset.streaming=false \
-  --dataset.image_transforms.enable=true \
-  --dataset.image_transforms.random_order=true \
-  --output_dir=outputs/so101_smolvla_v1_dagger \
-  --job_name=so101_smolvla_v1_dagger \
-  --policy.device=cuda \
-  --wandb.enable=false \
-  --policy.push_to_hub=false \
-  --steps=40000 \
-  --batch_size=36 \
-  --save_freq=2000 \
-  --rename_map='{"observation.images.front": "observation.images.camera1",
-    "observation.images.top": "observation.images.camera2"}'
-```
-
-### 方案 B：在训好的模型上 fine-tune（后续小修小补）
-
-如果模型已经 90% 成功，只剩某个特定小场景失败，可以只收集该场景的 DAgger 数据，用低学习率在上次 checkpoint 上 fine-tune。
-
-```bash
-python src/scripts/train.py \
-  --policy.path=outputs/so101_smolvla_v1/checkpoints/last/pretrained_model \
-  --dataset.repo_id=local/so101_grape_put_v1_dagger_small \
-  --dataset.root=/home/j/ws/so101/data/so101_grape_put_v1_dagger_small \
-  --output_dir=outputs/so101_smolvla_v1_finetune \
-  --steps=5000 \
-  --batch_size=8 \
-  --lr=1e-5 \
-  --save_freq=1000 \
-  --rename_map='{"observation.images.front": "observation.images.camera1",
-    "observation.images.top": "observation.images.camera2"}'
-```
-
-**fine-tune 的缺点**：
-- 容易过拟合 DAgger 数据（样本少且分布偏）
-- 可能遗忘原来的成功经验
-- 只推荐用于"小修小补"，第一次 DAgger 迭代用方案 A
-
-### DAgger 数据量与合并比例建议
-
-| 原数据量 | DAgger 建议量 | 合并后总量 | 说明 |
-|---------|-------------|-----------|------|
-| 200 条 | 30~50 条 | 230~250 条 | 第一次迭代 |
-| 250 条 | 20~30 条 | 270~280 条 | 后续小迭代 |
-
-- DAgger 数据虽然少，但都是"失败场景 + 正确纠正"，信息密度高
-- 合并后默认 equal weight，不需要额外加权
-- 如果想提高 DAgger 数据采样概率，可以：
-  - 多收集一些（占比 15~20%）
-  - 或将 DAgger 数据集复制多份后合并
-
-### DAgger 操作要点
-
-1. **观察失败模式**：先在 `base`/`episodic` 模式下跑 20~30 轮，记录常见失败（如方块在左侧够不到、夹爪角度不对等）
-2. **针对性收集**：DAgger 时故意制造这些失败场景，让模型出错，然后接管主臂纠正
-3. **纠正要完整**：接管后要把整个正确轨迹做完，不只是修正一步
-4. **覆盖多样性**：同一类失败场景多收集几次（不同位置、光照）
-5. **夹爪冷却**：DAgger 也是真机运行，注意夹爪电机过热问题
-
-### DAgger 与 RA-BC 的对比
-
-| 方案 | 是否需要 reward model | 实施难度 | 适用阶段 | 推荐度 |
-|------|---------------------|---------|---------|--------|
-| **DAgger + 重新训练** | 不需要 | 中 | 第一次迭代 | ⭐⭐⭐⭐⭐ |
-| **DAgger + fine-tune** | 不需要 | 低 | 小修小补 | ⭐⭐⭐ |
-| **RA-BC + SARM** | 需要训练 SARM reward model | 高 | 有充足资源时 | ⭐⭐ |
-
-DAgger 对当前项目是最实用的选择。
+> **DAgger 已评估**：20k 模型实测 25 组成功率 84%（21/25），实际体验稳定，无需 DAgger 迭代纠错。
 
 ## 颜色切换
 
@@ -261,37 +120,58 @@ lerobot-eval \
 
 ## 模型验证与成功率统计
 
-训练完成后，需要量化评估模型在真实任务上的表现。本项目的验证方案分为**自动运行多轮**和**手动标记成功**两部分。
+训练完成后，需要量化评估模型在真实任务上的表现。本项目的验证方案使用 `episodic` 策略**自动运行指定组数，每组 30 秒**，人工在每轮结束后标记成功/失败。
 
 ### 方案概述
 
 | 方法 | 说明 | 适用场景 |
 |------|------|---------|
-| 自动多轮运行 | 用 `lerobot-rollout` 的 `episodic` 策略自动运行 N 轮 | 快速生成大量测试 episode |
+| 自动多轮运行 | 用 `lerobot-rollout` 的 `episodic` 策略自动运行 N 组，每组固定时长 | 快速生成大量测试 episode |
 | 手动成功标记 | 每轮结束后人工判断成功/失败，记录统计 | 真机任务，无自动成功检测 |
+
+**评估配置**：每组推理 30 秒 + 复位 15 秒，共 25 组，全程约 19 分钟。直接在终端运行即可，无需守候。
 
 ### 自动运行多轮（episodic 策略）
 
-v0.6.0 的 `lerobot-rollout` 支持 `--strategy.type=episodic` + `--strategy.num_episodes=N` 自动连续运行多轮，每轮之间自动复位：
+v0.6.0 的 `lerobot-rollout` 支持 `--strategy.type=episodic` 自动连续运行多轮，每轮之间自动复位：
 
 ```bash
 python src/scripts/rollout.py \
   --strategy.type=episodic \
-  --strategy.num_episodes=20 \
+  --dataset.num_episodes=20 \
+  --dataset.episode_time_s=30 \
+  --dataset.reset_time_s=15 \
   --inference.type=rtc \
   --inference.rtc.execution_horizon=10 \
   --policy.path=/home/j/ws/so101/checkpoints/so101_smolvla_infer \
   --task="put grape block in plate" \
-  --dataset.repo_id=local/so101_eval_grape \
+  --dataset.repo_id=local/rollout_so101_eval \
   --dataset.single_task="put grape block in plate" \
   --dataset.push_to_hub=false
 ```
 
-> `episodic` 策略会自动在每轮结束后进入复位阶段，等待环境重置后继续下一轮，直到完成 `--strategy.num_episodes` 指定的轮数。
+> `episodic` 策略会自动在每轮结束后进入复位阶段，等待环境重置后继续下一轮，直到完成 `--dataset.num_episodes` 指定的轮数。
 
 ### 手动成功标记与统计
 
 由于真机抓取任务没有自动成功检测（如物体位置传感器），需要人工观察并记录：
+
+#### 评估结果（v1-2，20k 步，2026-07-22）
+
+```
+模型: so101_smolvla_v1-2 (20k 步)  日期: 2026-07-22  测试轮数: 25
+
+| 轮次 | 成功 | 备注 |
+|------|------|------|
+| 1-21 | ✓    | 21 次成功 |
+| 22   | ✗    | 未能抓起 |
+| 23   | ✗    | 未能抓起 |
+| 24   | ✗    | 未能抓起 |
+| 25   | ✗    | 已抓起但夹爪未松开 |
+
+成功率: 21/25 = 84%
+结论: 模型稳定，无需 DAgger 迭代纠错
+```
 
 #### 记录表模板
 
@@ -354,12 +234,11 @@ python src/scripts/eval_stats.py s s f s s s f s s s
 
 ## 迭代优化
 
-如果效果不佳：
+当前 20k 模型（v1-2）已满足需求（84% 成功率），无需进一步优化。如果后续需要改进：
 
-1. 增加数据多样性
-2. 使用 DAgger 收集失败场景的人为纠正数据
-3. 尝试不同策略（Diffusion / SmolVLA）
-4. 增加训练步数或调整固定关节角度
+1. 增加数据多样性重新训练
+2. 尝试不同策略（ACT 等）
+3. 增加训练步数或调整固定关节角度
 
 ## 安全提示
 
@@ -369,3 +248,116 @@ python src/scripts/eval_stats.py s s f s s s f s s s
 - 从臂活动范围内没有障碍物
 - 随时可以按 `Ctrl+C` 停止
 - 首次推理时建议降低 `--duration`，先观察几轮
+
+---
+
+## 快速推理命令（手动操作用）
+
+> 训练完成后直接复制粘贴即可运行。
+
+### 前置检查
+
+```bash
+# 1. 确认机械臂已上电、USB 已连接
+ls /dev/serial/by-id/
+
+# 2. 确认摄像头正常
+ls /dev/v4l/by-id/
+
+# 3. 进入项目目录
+cd /home/j/ws/so101
+```
+
+### 单条推理（测试用）
+
+**10,000 步模型（v1-1）**：
+
+```bash
+PYTHONPATH= HF_HUB_OFFLINE=1 /home/j/miniconda3/envs/lerobot/bin/python -u src/scripts/rollout.py \
+  --strategy.type=base \
+  --inference.type=rtc \
+  --inference.rtc.execution_horizon=10 \
+  --policy.path=outputs/so101_smolvla_v1-1/checkpoints/010000/pretrained_model \
+  --policy.empty_cameras=1 \
+  --task="put grape block in plate" \
+  --duration=300 \
+  --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+```
+
+**20,000 步模型（v1-2）**：
+
+```bash
+PYTHONPATH= HF_HUB_OFFLINE=1 /home/j/miniconda3/envs/lerobot/bin/python -u src/scripts/rollout.py \
+  --strategy.type=base \
+  --inference.type=rtc \
+  --inference.rtc.execution_horizon=10 \
+  --policy.path=outputs/so101_smolvla_v1-1/checkpoints/020000/pretrained_model \
+  --policy.empty_cameras=1 \
+  --task="put grape block in plate" \
+  --duration=300 \
+  --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+```
+
+### 25 组正式评估（推荐）
+
+每组 30 秒，自动复位，共 25 组。直接复制粘贴到终端运行即可。
+
+> **注意**：`episodic` 策略会记录数据到本地（作为评估记录），但不会上传到 Hub。
+
+**20,000 步模型（v1-2）**：
+
+```bash
+cd /home/j/ws/so101 && PYTHONPATH= HF_HUB_OFFLINE=1 /home/j/miniconda3/envs/lerobot/bin/python -u src/scripts/rollout.py \
+  --strategy.type=episodic \
+  --dataset.num_episodes=25 \
+  --dataset.episode_time_s=30 \
+  --dataset.reset_time_s=15 \
+  --dataset.repo_id=local/rollout_so101_eval_20k \
+  --dataset.single_task="put grape block in plate" \
+  --dataset.push_to_hub=false \
+  --inference.type=rtc \
+  --inference.rtc.execution_horizon=10 \
+  --policy.path=outputs/so101_smolvla_v1-1/checkpoints/020000/pretrained_model \
+  --policy.empty_cameras=1 \
+  --task="put grape block in plate" \
+  --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+```
+
+**18,000 步模型（对比用）**：
+
+```bash
+cd /home/j/ws/so101 && PYTHONPATH= HF_HUB_OFFLINE=1 /home/j/miniconda3/envs/lerobot/bin/python -u src/scripts/rollout.py \
+  --strategy.type=episodic \
+  --dataset.num_episodes=25 \
+  --dataset.episode_time_s=30 \
+  --dataset.reset_time_s=15 \
+  --dataset.repo_id=local/rollout_so101_eval_18k \
+  --dataset.single_task="put grape block in plate" \
+  --dataset.push_to_hub=false \
+  --inference.type=rtc \
+  --inference.rtc.execution_horizon=10 \
+  --policy.path=outputs/so101_smolvla_v1-1/checkpoints/018000/pretrained_model \
+  --policy.empty_cameras=1 \
+  --task="put grape block in plate" \
+  --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+```
+
+### 关键参数说明
+
+| 参数 | 必须设置 | 说明 |
+|------|---------|------|
+| `HF_HUB_OFFLINE=1` | ✅ 必须 | 离线模式，避免卡在联网下载 |
+| `--policy.empty_cameras=1` | ✅ 必须 | 声明有 1 个空相机（你只有 2 个，模型期望 3 个） |
+| `--rename_map` | ✅ 必须 | front→camera1, top→camera2 |
+| `--inference.type=rtc` | ✅ 必须 | SmolVLA 必须用 RTC 模式 |
+| `--dataset.episode_time_s` | 可调 | 每组推理时长（秒），30=半分钟 |
+| `--dataset.reset_time_s` | 可调 | 每组间复位时长（秒），15 秒 |
+| `--dataset.num_episodes` | 可调 | 总组数，25 组 |
+
+### 常见问题
+
+**卡在 "Loading policy" 不动**：加上 `HF_HUB_OFFLINE=1`
+
+**报错 "Visual feature mismatch"**：加上 `--policy.empty_cameras=1` 和 `--rename_map`
+
+**报错 "Could not connect on port"**：机械臂未上电或 USB 未插，先 `ls /dev/serial/by-id/` 确认

@@ -16,6 +16,7 @@
 | 框架 | LeRobot **v0.6.0** |
 | GPU | NVIDIA RTX 5070 12GB |
 | 训练数据 | 199 条 / 52,010 frames（v1-1 ~ v1-20 合并） |
+| **最终成功率** | **21/25 = 84%** ✅ |
 
 ## LeRobot v0.6.0 新特性与本项目的应用
 
@@ -25,14 +26,13 @@
 
 | 类别 | v0.5.1 | v0.6.0 | 本项目适配 |
 |------|--------|--------|-----------|
-| 真机推理 | `lerobot-eval` | **`lerobot-rollout`** | 使用 `src/scripts/rollout.py` 包装，支持 DAgger/RTC/连续录制 |
+| 真机推理 | `lerobot-eval` | **`lerobot-rollout`** | 使用 `src/scripts/rollout.py` 包装，支持 RTC/连续录制 |
 | 数据录制 | `repo_id` 原样保存 | **`repo_id` 自动追加时间戳** | 用 `--dataset.root` 指定存储路径，不受时间戳影响 |
 | 多数据集训练 | `--dataset.repo_id='["a","b"]'` | **已禁用**（`NotImplementedError`） | 使用 `lerobot-edit-dataset --operation.type=merge` 物理合并 |
 | 数据回放 | `lerobot-record --replay` | **`lerobot-replay`** 独立命令 | 使用 `src/scripts/replay.py` 包装 |
-| DAgger | 需要自行实现 | **原生支持** | 计划用于人机回环纠错，生成 v2 数据 |
 | RTC 推理 | 无 | **`--inference.type=rtc`** | SmolVLA 推理速度慢，需 RTC 实时 chunk 推理 |
 | 视频解码 | 默认 `torchcodec` | 默认 `torchcodec`（有兼容问题） | 改用 **`--dataset.video_backend=pyav`** |
-| 参数命名 | `--output_dir` | 移除，用 `--output_dir` 仍可 | 训练命名方案：`so101_smolvla_v{version}-{group}` |
+| 参数命名 | `--output_dir` | 移除，用 `--policy.path` 控制 | 训练命名方案：`so101_smolvla_v{version}-{group}` |
 | 评估频率 | `eval_freq` | **`env_eval_freq`** | 真机任务设为 `0`（不做仿真评估） |
 | 策略命名 | `sac` | **`gaussian_actor`** | - |
 | 最小 PyTorch | 2.x | **2.7+** | 当前环境 PyTorch 2.10 |
@@ -44,9 +44,6 @@ v0.6.0 默认使用 `torchcodec` 作为视频解码后端，但在当前环境�
 **解决方案**：所有训练命令必须加 `--dataset.video_backend=pyav`，使用 PyAV 后端替代。
 
 ```bash
-# 错误：默认 torchcodec 会卡住
---dataset.video_backend=torchcodec  # ← 不要用
-
 # 正确：使用 pyav
 --dataset.video_backend=pyav  # ← 必须加这个
 ```
@@ -181,13 +178,20 @@ python src/scripts/record.py \
 ```bash
 HF_HUB_OFFLINE=1 python src/scripts/train.py \
   --policy.path=checkpoints/smolvla_base_migrated \
+  --policy.load_vlm_weights=false \
   --policy.use_amp=true \
   --policy.n_obs_steps=4 \
   --dataset.repo_id=local/so101_grape_put_v1_merged \
   --dataset.root=data/so101_grape_put_v1_merged \
+  --dataset.streaming=false \
   --dataset.video_backend=pyav \
   --dataset.image_transforms.enable=true \
+  --dataset.image_transforms.random_order=true \
   --output_dir=outputs/so101_smolvla_v1-1 \
+  --job_name=so101_smolvla_v1-1 \
+  --policy.device=cuda \
+  --wandb.enable=false \
+  --policy.push_to_hub=false \
   --steps=10000 \
   --batch_size=36 \
   --save_freq=2000 \
@@ -197,30 +201,38 @@ HF_HUB_OFFLINE=1 python src/scripts/train.py \
 ```
 
 > ⚠️ **必须加 `--dataset.video_backend=pyav`**，否则 torchcodec CXXABI 不兼容导致训练卡住。
-> 训练采用分阶段命名：`v1-1`（0→10k）→ `v1-2`（10k→20k resume）→ `v1-3`（20k→30k resume）。
+> 训练采用分阶段命名：`v1-1`（0→10k）→ `v1-2`（10k→20k resume）。
 
-### 5. 推理
+### 5. 评估模型（25 组 × 30 秒）
 
 ```bash
-python src/scripts/rollout.py \
-  --strategy.type=base \
-  --policy.path=outputs/so101_smolvla_v1-1/checkpoints/010000/pretrained_model \
+cd /home/j/ws/so101 && PYTHONPATH= HF_HUB_OFFLINE=1 /home/j/miniconda3/envs/lerobot/bin/python -u src/scripts/rollout.py \
+  --strategy.type=episodic \
+  --dataset.num_episodes=25 \
+  --dataset.episode_time_s=30 \
+  --dataset.reset_time_s=15 \
+  --dataset.repo_id=local/rollout_so101_eval_20k \
+  --dataset.single_task="put grape block in plate" \
+  --dataset.push_to_hub=false \
+  --inference.type=rtc \
+  --inference.rtc.execution_horizon=10 \
+  --policy.path=outputs/so101_smolvla_v1-1/checkpoints/020000/pretrained_model \
+  --policy.empty_cameras=1 \
   --task="put grape block in plate" \
-  --duration=60
+  --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
 ```
 
-> 慢速 VLA 模型建议加 `--inference.type=rtc` 启用实时 chunk 推理。
+> SmolVLA 必须加 `--inference.type=rtc` 启用实时 chunk 推理。
+> `--policy.empty_cameras=1` 声明有 1 个空摄像头位（模型期望 3 个，实际只有 2 个）。
+> `--rename_map` 把 `front`/`top` 映射到 `camera1`/`camera2`。
 
-## 训练方案
+## 训练结果
 
-### 命名规则
-
-| 训练名 | 数据版本 | 训练轮次 | 步数范围 |
-|--------|---------|---------|---------|
-| `so101_smolvla_v1-1` | v1 | 第 1 版 | 0 → 10,000 |
-| `so101_smolvla_v1-2` | v1 | 第 2 版（续训） | 10,000 → 20,000 |
-| `so101_smolvla_v1-3` | v1 | 第 3 版（续训） | 20,000 → 30,000 |
-| `so101_smolvla_v2-1` | v2（含 DAgger） | 第 1 版（从头训） | 0 → N |
+| 训练名 | 步数 | 状态 | 评估结果 |
+|--------|------|------|---------|
+| `so101_smolvla_v1-1` | 0 → 10,000 | 完成 ✅ | 可运行，边缘位置不稳定 |
+| `so101_smolvla_v1-2` | 10,000 → 20,000 | 完成 ✅ | **21/25 = 84%** ✅ 最佳模型 |
+| `so101_smolvla_v1-3` | 20,000 → 30,000 | 未执行 | 20k 已达标，无需继续 |
 
 ### 分阶段训练
 
@@ -235,13 +247,6 @@ HF_HUB_OFFLINE=1 python src/scripts/train.py \
 ```
 
 > `--steps` 是**总步数**而非增量步数。从 10k 续到 20k 应设 `--steps=20000`。
-
-### DAgger 迭代流程（计划中）
-
-1. 部署 v1 模型进行推理
-2. 模型出错时人类接管纠正（DAgger 人机回环）
-3. 纠正数据作为 v2 版数据集
-4. 合并 v1 + v2 数据，从头训练 `v2-1`
 
 ## 下一步
 
@@ -286,6 +291,8 @@ cd /home/j/ws/so101
 | SmolVLA 格式 | 录制用 `front`/`top`，训练时 `--rename_map` 映射到 `camera1`/`camera2` |
 | 已下载模型 | `checkpoints/smolvla_base_migrated`（迁移后的官方 SmolVLA 预训练） |
 | 视频后端 | 必须用 `--dataset.video_backend=pyav`，torchcodec 有 CXXABI 兼容问题 |
+| 推理必备参数 | `HF_HUB_OFFLINE=1` + `--policy.empty_cameras=1` + `--rename_map` |
+| 评估方式 | 25 组 × 30 秒，episodic 策略自动运行 |
 
 ### 3. 已应用的 Patch（必须知道）
 
@@ -307,21 +314,4 @@ cd /home/j/ws/so101
 5. **SmolVLA 相机键名**：必须是 `observation.images.camera1`/`camera2`，录制用 `front`/`top` 需 rename_map
 6. **torchcodec 卡死**：必须用 `--dataset.video_backend=pyav`，详见 [07-troubleshooting.md](docs/07-troubleshooting.md)
 7. **多数据集已禁用**：v0.6.0 不支持列表式多数据集，必须先用 `lerobot-edit-dataset --operation.type=merge` 合并
-8. **断网/代理**：GitHub 访问慢时配置本机 HTTP 代理，或使用镜像 `ghfast.top`
-
-### 5. 当前进度
-
-- [x] 硬件连接、校准、遥操作（wrist_roll 锁定 -27.82°）
-- [x] 录制/训练/推理流程设计完成
-- [x] 数据录制完成：v1-1 ~ v1-20 共 **199 条** / 52,010 frames
-- [x] 数据合并完成：`so101_grape_put_v1_merged`
-- [x] torchcodec 问题已解决（改用 `--dataset.video_backend=pyav`）
-- [x] 1000 步测试训练通过（batch=36 显存 ~10.1GB）
-- [x] 训练命名方案：`v1-1`（0→10k）→ `v1-2`（10k→20k）→ `v1-3`（20k→30k）
-- [ ] **正式训练 SmolVLA v1-1**（batch=36, 10k 步, ~3h）
-- [ ] 推理部署 + 成功率验证
-- [ ] DAgger 迭代（如需，生成 v2 数据重新训练）
-
-### 6. 新会话第一句话建议
-
-> "读 `/home/j/ws/so101/README.md` 和 `docs/` 下所有文档，特别是 AI 接手指南章节，然后告诉我当前进度和下一步该做什么。"
+8. **断网/代理**：GitHub 访问慢时配置本

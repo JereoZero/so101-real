@@ -16,13 +16,12 @@
 | 策略 | 适用场景 | 显存需求（训练） | 说明 |
 |------|---------|-----------------|------|
 | **ACT** | 快速验证、简单任务 | ~2-4 GB | 非 VLM，训练最快，效果上限较低 |
-| **Diffusion** | 生成式策略、中等复杂度任务 | ~4-8 GB | 效果较好，对数据多样性要求高 |
-| **SmolVLA** | 语言指令、多任务/泛化 | ~8-12 GB | 参考项目最终使用，VLM  backbone 仅 500M，5070 可跑 |
+| **SmolVLA** | 语言指令、多任务/泛化 | ~8-12 GB | 本项目使用，VLM backbone 仅 500M，5070 可跑 |
 | **Evo1** | 新出的轻量 VLA | ~10-12 GB | v0.6 新增，基于 InternVL3-1B，可关注但生态尚少 |
 | **Pi0 / Pi0.5** | 通用 VLA | >16 GB | 效果强但 5070 12GB 训练和推理都吃力，不推荐 |
 | **EO1 / Groot / MolmoAct2** | 大参数 VLA | >16 GB | 3B+ 参数，12GB 显存不够，不推荐 |
 
-参考项目最终使用 **SmolVLA**。下面分别给出 ACT、Diffusion 和 SmolVLA 的训练示例。
+本项目使用 **SmolVLA**。下面给出 SmolVLA 训练示例。
 
 ## ACT 训练示例
 
@@ -46,33 +45,6 @@ python src/scripts/train.py \
   --training.num_epochs=3000 \
   --output_dir=outputs/so101_act
 ```
-
-## Diffusion 训练示例
-
-Diffusion Policy 是效果与速度兼顾的选择，适合 5070：
-
-```bash
-unset PYTHONPATH
-conda activate lerobot
-cd /home/j/ws/so101
-
-python src/scripts/train.py \
-  --dataset.repo_id=local/so101_pick_place_20260720_123456 \
-  --policy.type=diffusion \
-  --policy.n_obs_steps=2 \
-  --policy.horizon=64 \
-  --policy.n_action_steps=32 \
-  --policy.vision_backbone=resnet18 \
-  --policy.down_dims=[512,1024,2048] \
-  --policy.num_train_timesteps=100 \
-  --training.batch_size=32 \
-  --training.num_workers=4 \
-  --training.lr=1e-4 \
-  --training.num_epochs=3000 \
-  --output_dir=outputs/so101_diffusion
-```
-
-> 如果显存吃紧，可把 `down_dims` 改为 `[256,512,1024]` 或 `batch_size` 降到 16。
 
 ## SmolVLA 训练示例
 
@@ -403,10 +375,58 @@ outputs/so101_smolvla_v1-1/
 │   │   └── pretrained_model/
 │   ├── 004000/
 │   │   └── pretrained_model/
+│   ├── 006000/
+│   │   └── pretrained_model/
+│   ├── 008000/
+│   │   └── pretrained_model/
 │   └── 010000/
-│       └── pretrained_model/
+│       └── pretrained_model/   ← v1-1 最终模型
 ├── train.log
 └── ...
+
+outputs/so101_smolvla_v1-1/
+└── checkpoints/
+    ├── 012000/
+    │   └── pretrained_model/
+    ├── 014000/
+    │   └── pretrained_model/
+    ├── 016000/
+    │   └── pretrained_model/
+    ├── 018000/
+    │   └── pretrained_model/
+    └── 020000/
+        └── pretrained_model/   ← v1-2 最终模型（最佳模型 ✅）
+```
+
+### 实际训练结果
+
+| 训练 | 步数 | 状态 | 评估结果 |
+|------|------|------|---------|
+| **v1-1** | 0 → 10,000 | 完成 ✅ | 10k 模型可运行，核心位置准确，边缘位置不稳定 |
+| **v1-2** | 10,000 → 20,000 | 完成 ✅ | **25 组测试，21 成功（84%）**，实际体验稳定 |
+| v1-3 | 20,000 → 30,000 | 未执行 | 20k 已达标，无需继续训练 |
+
+**最终选择**：`so101_smolvla_v1-2`（20k 步）作为最终模型。
+
+### 推理命令
+
+20k 模型推理命令（详见 [06-inference.md](06-inference.md)）：
+
+```bash
+cd /home/j/ws/so101 && PYTHONPATH= HF_HUB_OFFLINE=1 /home/j/miniconda3/envs/lerobot/bin/python -u src/scripts/rollout.py \
+  --strategy.type=episodic \
+  --dataset.num_episodes=25 \
+  --dataset.episode_time_s=30 \
+  --dataset.reset_time_s=15 \
+  --dataset.repo_id=local/rollout_so101_eval_20k \
+  --dataset.single_task="put grape block in plate" \
+  --dataset.push_to_hub=false \
+  --inference.type=rtc \
+  --inference.rtc.execution_horizon=10 \
+  --policy.path=outputs/so101_smolvla_v1-1/checkpoints/020000/pretrained_model \
+  --policy.empty_cameras=1 \
+  --task="put grape block in plate" \
+  --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
 ```
 
 ## 数据集格式与 v0.6 兼容性
@@ -439,13 +459,13 @@ python src/scripts/train.py \
   --output_dir=outputs/svla_so101_act
 ```
 
-### 同一个数据集能同时训练 SmolVLA 和 ACT/Diffusion 吗？
+### 同一个数据集能同时训练 SmolVLA 和 ACT 吗？
 
 **可以。** LeRobot 的数据集是策略无关的，只要包含 `observation.images.*`、`observation.state` 和 `action` 就行。不同策略的主要差别是对**图像键名**的约定：
 
 | 策略 | 对相机键名的要求 | 是否需要 `rename_map` |
 |------|-----------------|---------------------|
-| **ACT / Diffusion** | 自动识别所有 `observation.images.*` | 不需要 |
+| **ACT** | 自动识别所有 `observation.images.*` | 不需要 |
 | **SmolVLA** | 预训练模型期望 `camera1`、`camera2`... | 需要 |
 
 例如：
@@ -490,7 +510,7 @@ python src/scripts/train.py \
     --output_dir=outputs/so101_smolvla
   ```
 
-> 语言指令列（`--dataset.single_task`）对 ACT/Diffusion 不是必需，它们只学动作；对 SmolVLA 是重要输入。
+> 语言指令列（`--dataset.single_task`）对 ACT 不是必需，它们只学动作；对 SmolVLA 是重要输入。
 
 ## 常见问题
 

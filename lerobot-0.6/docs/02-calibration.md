@@ -8,6 +8,7 @@
 - 已完成 [01-hardware-setup.md](01-hardware-setup.md)
 - 已确认主臂 / 从臂串口对应关系
 - 已应用 SO-101 patch（包括 `wrist_roll` 校准、夹爪扭矩、录制复位修复、电机通信容错）
+- **已执行 `unset PYTHONPATH`**（LeRobot v0.6.0 必须清除 PYTHONPATH 污染，否则校准可能报错）
 
 ```bash
 unset PYTHONPATH

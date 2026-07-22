@@ -170,3 +170,325 @@ conda remove -n lerobot openvino
 ```
 
 当前项目推荐直接使用 `--dataset.video_backend=pyav`，无需额外操作。
+
+## 14. 推理时报 `Visual feature mismatch`
+
+### 现象
+
+```text
+ValueError: Visual feature mismatch between policy and robot hardware
+```
+
+模型期望的摄像头名称为 `camera1`、`camera2`、`camera3`，但机器人实际提供的是 `front`、`top`。
+
+### 原因
+
+SmolVLA 预训练模型使用 3 个摄像头（`camera1`/`camera2`/`camera3`），但 SO-101 实际只有 2 个摄像头（`front`/`top`），名称不匹配。
+
+### 解决
+
+两个参数缺一不可：
+
+```bash
+# 1. 重命名摄像头：front→camera1, top→camera2
+--rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.top": "observation.images.camera2"}'
+
+# 2. 声明有 1 个空摄像头位（模型期望 3 个，实际只有 2 个）
+--policy.empty_cameras=1
+```
+
+## 15. 推理卡在 "Loading policy"
+
+### 现象
+
+运行推理命令后，卡在 `Loading policy from '...'` 不动，没有任何进度，也不报错退出。
+
+### 原因
+
+LeRobot 推理时默认会联网下载 `chat_template.jinja` 文件。如果网络不通或 HuggingFace 无法访问，就会卡住。
+
+### 解决
+
+命令前加 `HF_HUB_OFFLINE=1`：
+
+```bash
+HF_HUB_OFFLINE=1 python src/scripts/rollout.py ...
+```
+
+## 16. `episodic` 策略报错 `--dataset.repo_id` 必填
+
+### 现象
+
+```text
+ValueError: episodic strategy requires --dataset.repo_id to be set
+```
+
+### 原因
+
+LeRobot v0.6.0 的 `episodic` 策略会录制数据，必须指定数据集名称。
+
+### 解决
+
+```bash
+--strategy.type=episodic \
+--dataset.repo_id=local/rollout_xxx \
+--dataset.push_to_hub=false \
+--dataset.single_task="put grape block in plate"
+```
+
+数据集名称必须以 `rollout_` 开头，否则会报：
+
+```text
+ValueError: Dataset names for rollout must start with 'rollout_'
+```
+
+## 17. `episodic` 策略的组数和时长参数
+
+### 现象
+
+```bash
+# 错误：这些参数不存在
+--strategy.num_episodes=25
+--strategy.episode_duration_s=30
+```
+
+### 原因
+
+`episodic` 策略的 `EpisodicStrategyConfig` 没有 `num_episodes` 和 `episode_duration_s` 字段。这些参数来自 `DatasetRecordConfig`。
+
+### 解决
+
+使用 `--dataset.*` 前缀：
+
+```bash
+# 正确
+--dataset.num_episodes=25    # 总组数
+--dataset.episode_time_s=30  # 每组推理时长（秒）
+--dataset.reset_time_s=15    # 组间复位时长（秒）
+```
+
+## 18. 训练时 `--output_dir` 参数不存在
+
+### 现象
+
+```text
+Error: unrecognized arguments: --output_dir
+```
+
+### 原因
+
+v0.6.0 移除了 `--output_dir` 参数，数据集存储路径改由 `--dataset.root` 控制，模型输出路径由 `--policy.path` 控制。
+
+### 解决
+
+```bash
+# v0.5.x 旧写法
+--output_dir=outputs/so101_smolvla
+
+# v0.6.0 新写法
+--dataset.root=/home/j/ws/so101/data/so101_grape_put_v1
+--policy.path=outputs/so101_smolvla/checkpoints/last/pretrained_model
+```
+
+## 19. 训练时 `--steps` 参数行为变化
+
+### 现象
+
+恢复训练时，指定 `--steps=20000` 但模型只跑了 10000 步就停了。
+
+### 原因
+
+v0.6.0 中 `--steps` 指定的是**总步数**（不是额外步数）。如果已经训练了 10000 步，`--steps=20000` 只会再跑 10000 步。
+
+### 解决
+
+```bash
+# 第一次训练：0→20000 步
+--steps=20000
+
+# 从 10000 步恢复训练到 20000 步
+--resume=true \
+--config_path=outputs/so101_smolvla/checkpoints/010000/pretrained_model/train_config.json \
+--steps=20000
+```
+
+## 20. 训练时数据集合并失败
+
+### 现象
+
+```text
+ValueError: MultiLeRobotDataset is disabled in v0.6.0
+```
+
+### 原因
+
+v0.6.0 禁用了 `MultiLeRobotDataset`，不能通过 `--dataset.repo_id='["a","b"]'` 直接加载多个数据集。
+
+### 解决
+
+使用 `lerobot-edit-dataset --operation.type=merge` 先物理合并：
+
+```bash
+lerobot-edit-dataset \
+  --operation.type=merge \
+  --operation.repo_ids='["local/ds1","local/ds2"]' \
+  --operation.roots='["/path/to/ds1","/path/to/ds2"]' \
+  --new_repo_id=local/merged \
+  --new_root=/path/to/merged
+```
+
+## 21. 训练时视频编码参数报错
+
+### 现象
+
+```text
+Error: unrecognized arguments: --dataset.vcodec
+```
+
+### 原因
+
+v0.6.0 中视频编码参数路径从 `--dataset.vcodec` 改为 `--dataset.rgb_encoder.vcodec`。
+
+### 解决
+
+```bash
+# v0.5.x
+--dataset.vcodec=h264
+
+# v0.6.0
+--dataset.rgb_encoder.vcodec=h264
+```
+
+## 22. 训练配置中 `eval_freq` 报错
+
+### 现象
+
+```text
+Error: unrecognized arguments: --eval_freq
+```
+
+### 原因
+
+v0.6.0 中 `eval_freq` 改名为 `env_eval_freq`。
+
+### 解决
+
+```bash
+# v0.5.x
+eval_freq=1000
+
+# v0.6.0
+env_eval_freq=1000
+```
+
+## 23. 训练时 `sac` 策略报错
+
+### 现象
+
+```text
+Error: unrecognized strategy: sac
+```
+
+### 原因
+
+v0.6.0 中 `sac` 策略改名为 `gaussian_actor`。
+
+### 解决
+
+```bash
+# v0.5.x
+--policy.type=sac
+
+# v0.6.0
+--policy.type=gaussian_actor
+```
+
+## 24. 推理时 `--duration=0` 不退出
+
+### 现象
+
+设置 `--duration=0` 后模型一直运行不停止。
+
+### 说明
+
+`--duration=0` 表示无限运行模式，这是正常行为。用于手动换场景测试时很方便。如果希望自动结束，改成一个正数（秒）：
+
+```bash
+--duration=300   # 5 分钟后自动退出
+```
+
+如果要自动运行多轮带复位，使用 `episodic` 策略代替 `base` 策略。
+
+## 25. 机械臂电机连接不稳定（部分电机找不到）
+
+### 现象
+
+```
+RuntimeError: FeetechMotorsBus motor check failed on port '...':
+
+Missing motor IDs:
+  - 4 (expected model: 777)
+
+Full found motor list:
+{1: 777, 2: 777, 3: 777, 5: 777, 6: 777}
+```
+
+### 原因
+
+- 电机电源不稳定（供电不足或接触不良）
+- USB 转串口线松动
+- 电机板固件异常
+
+### 解决
+
+1. 重新上电（关闭电源，等 5 秒再开）
+2. 检查 USB 线连接
+3. 如果特定电机反复掉线，检查该电机的接线
+4. 运行 `ls /dev/serial/by-id/` 确认串口设备存在
+
+## 26. 训练时数据增强参数变化
+
+### 现象
+
+训练时图片转换相关参数名称变化。
+
+### 解决
+
+```bash
+# v0.6.0 启用图片增强
+--dataset.image_transforms.enable=true
+--dataset.image_transforms.random_order=true
+```
+
+## 27. 训练时 batch_size 和显存
+
+### 说明
+
+RTX 5070 (12GB) 上训练 SmolVLA，推荐：
+
+```bash
+--batch_size=36
+```
+
+如果显存不足（OOM），降低到 24 或 16。训练时建议开启 AMP 混合精度：
+
+```bash
+--policy.use_amp=true
+```
+
+## 28. 训练时 PyTorch 版本要求
+
+### 说明
+
+LeRobot v0.6.0 要求 PyTorch ≥ 2.7。如果在旧环境中安装，需要先升级：
+
+```bash
+pip install --upgrade torch torchvision
+```
+
+验证：
+
+```bash
+python -c "import torch; print(torch.__version__)"
+# 应输出 2.7.x 或更高
+```

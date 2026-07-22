@@ -99,6 +99,7 @@ print('wrist_roll 唯一值:', np.unique(np.round(act[:,4],2)))
 - 摄像头已连接并测试正常
 - 紫色方块、白色盘子已就位
 - 桌面光照环境已布置好
+- **已执行 `unset PYTHONPATH`**（LeRobot v0.6.0 必须清除 PYTHONPATH 污染）
 
 ## 数据命名规则
 

@@ -1,61 +1,24 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Virtual environments
-venv/
-.env/
-.venv/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
 # OS
 .DS_Store
 Thumbs.db
 
-# LeRobot outputs (large / generated)
-data/*
-!data/.gitkeep
-outputs/*
-!outputs/.gitkeep
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Model checkpoints (large binary files)
-checkpoints/*
-!checkpoints/.gitkeep
+# Temp
+temp/
+*.tmp
 
-# HuggingFace cache
-*.safetensors
-*.bin
-*.pt
-*.pth
-*.ckpt
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
 
-# Logs
-*.log
-logs/
-
-# Local management / context files (NOT for GitHub)
-# These contain machine-specific info: device IDs, ports, proxy, local paths.
-PROJECT_LOG.md
-SESSION_SUMMARY.md
-LOCAL_*.md
-*.local.md
-.env.local
-
-# Real hardware config with machine-specific device IDs (NOT for GitHub).
-# Use so101.yaml.example as the template for others.
-src/configs/so101.yaml
-src/configs/so101_single.yaml
-
+# Obsidian
+.obsidian/

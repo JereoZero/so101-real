@@ -42,8 +42,8 @@ Linux 已为这两个 USB 串口创建固定 by-id 链接，插拔后路径不�
 | `ttyACM0` | 从臂（Follower） | `/dev/ttyACM0` | `<FOLLOWER_PORT>` |
 | `ttyACM1` | 主臂（Leader） | `/dev/ttyACM1` | `<LEADER_PORT>` |
 
-> **已确认**：通过拔掉主臂 USB 验证，消失的是 `/dev/ttyACM1`（序列号 `<LEADER_SERIAL>`），因此该端口为主臂；
-> 剩余 `/dev/ttyACM0`（序列号 `<FOLLOWER_SERIAL>`）为从臂。
+> **已确认**：通过拔掉主臂 USB 验证，消失的是 `/dev/ttyACM1`（序列号 `5B3E121553`），因此该端口为主臂；
+> 剩余 `/dev/ttyACM0`（序列号 `5B3E121987`）为从臂。
 > 如果后续更换 USB 口，可用 `lerobot-find-port` 重新确认。
 
 ### 摄像头
@@ -75,8 +75,8 @@ udevadm info -a -n /dev/ttyACM1 | grep -E "idVendor|idProduct|serial"
 创建 `/etc/udev/rules.d/99-so101.rules`：
 
 ```
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="<LEADER_SERIAL>", SYMLINK+="ttySO101_LEADER"
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="<FOLLOWER_SERIAL>", SYMLINK+="ttySO101_FOLLOWER"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="5B3E121553", SYMLINK+="ttySO101_LEADER"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="5B3E121987", SYMLINK+="ttySO101_FOLLOWER"
 ```
 
 加载规则：
@@ -157,3 +157,60 @@ PY
 ## 下一步
 
 确认串口和摄像头无误后，进入 [02-calibration.md](02-calibration.md) 进行校准。
+
+---
+
+## 附录：环境搭建（LeRobot v0.6.0）
+
+如果你从头搭建环境，按以下步骤操作：
+
+### 1. Conda 环境
+
+```bash
+# 创建 conda 环境（Python 3.12）
+conda create -n lerobot python=3.12 -y
+conda activate lerobot
+```
+
+### 2. 安装 PyTorch（≥ 2.7，v0.6.0 要求）
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+```
+
+验证 CUDA 可用：
+
+```bash
+python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA available: {torch.cuda.is_available()}')"
+```
+
+### 3. 安装 LeRobot v0.6.0（含 SmolVLA 依赖）
+
+```bash
+cd /home/j/ws/repos/lerobot
+pip install -e '.[training,smolvla]'
+```
+
+> `[training]` 包含训练所需依赖（数据集加载、视频编码等），`[smolvla]` 包含 SmolVLA 模型依赖。
+
+### 4. 关键环境变量
+
+每次使用前必须执行：
+
+```bash
+unset PYTHONPATH   # 清除 conda 切换时的 PYTHONPATH 污染
+conda activate lerobot  # 激活 lerobot 环境
+```
+
+### 5. 验证安装
+
+```bash
+python -c "
+from lerobot.scripts.lerobot_rollout import main
+print('lerobot-rollout OK')
+from lerobot.scripts.lerobot_record import main
+print('lerobot-record OK')
+from lerobot.scripts.lerobot_train import main
+print('lerobot-train OK')
+"
+```
